@@ -19,11 +19,11 @@ Now run the `svf --version` command to ensure it installed successfully:
 
 *NOTE: The version number displayed for you may vary*
 
-![alt text](/images/svf--version.PNG "svf --version")
+![alt text](https://raw.githubusercontent.com/nerdybeast/simple-vf-cli/master/images/svf--version.PNG "svf --version")
 
 You can also run the `svf --help` command to see all available options:
 
-![alt text](/images/svf--help.PNG "svf --help")
+![alt text](https://raw.githubusercontent.com/nerdybeast/simple-vf-cli/master/images/svf--help.PNG "svf --help")
 
 ### Commands
 
