@@ -9,7 +9,7 @@ Requirements:
 
 How to install:
 
-```javascript
+```
 npm install simple-vf-cli -g
 ```
 
@@ -19,11 +19,11 @@ Now run the `svf --version` command to ensure it installed successfully:
 
 *NOTE: The version number displayed for you may vary*
 
-![alt text](./images/svf--version.png "svf --version")
+![alt text](/images/svf--version.PNG "svf --version")
 
 You can also run the `svf --help` command to see all available options:
 
-![alt text](./images/svf--help.png "svf --help")
+![alt text](/images/svf--help.PNG "svf --help")
 
 ### Commands
 
@@ -51,15 +51,15 @@ This command will create a new Visualforce page (or find an existing one with th
 
 If you created a Visualforce page called "Tickets", here is what the contents of that newly created Visualforce page will look like:
 
-![alt text](./images/newpage.png)
+![alt text](/images/newpage.PNG)
 
 Now assuming your front end build system is [ember-cli v2.X](https://ember-cli.com), the "output" directory will be the `/dist` folder with this structure:
 
-![alt text](./images/dist.png)
+![alt text](/images/dist.PNG)
 
 and the html page created by [ember-cli](https://ember-cli.com) references these assets in this way:
 
-![alt text](./images/dist-html.png)
+![alt text](/images/dist-html.PNG)
 
 The javascript and css assets needed to make this app render properly are accessed via these paths:
 
@@ -70,7 +70,7 @@ The javascript and css assets needed to make this app render properly are access
 
 You need to update the newly created "Tickets" Visualforce page to reference these assets in this exact same way:
 
-![alt text](./images/newpage-updated.png)
+![alt text](/images/newpage-updated.PNG)
 
 #### serve
 
