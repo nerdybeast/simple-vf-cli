@@ -19,7 +19,7 @@ Now run the `svf --version` command to ensure it installed successfully:
 
 *NOTE: The version number displayed for you may vary*
 
-![alt text](https://goo.gl/photos/jpnHjp96KFzhC2FE6 "svf --version")
+![alt text](/images/svf--version.PNG "svf --version")
 
 You can also run the `svf --help` command to see all available options:
 
