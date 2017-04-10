@@ -49,28 +49,7 @@ svf new
 
 This command will create a new Visualforce page (or find an existing one with the same name). This new page will be stubbed out with the necessary custom setting, javascript, and css references needed. You will need to uncomment and update the paths to the javascript and css references according to the output of your front end build system.
 
-If you created a Visualforce page called "Tickets", here is what the contents of that newly created Visualforce page will look like:
-
-![alt text](https://raw.githubusercontent.com/nerdybeast/simple-vf-cli/master/images/newpage.PNG)
-
-Now assuming your front end build system is [ember-cli v2.X](https://ember-cli.com), the "output" directory will be the `/dist` folder with this structure:
-
-![alt text](https://raw.githubusercontent.com/nerdybeast/simple-vf-cli/master/images/dist.PNG)
-
-and the html page created by [ember-cli](https://ember-cli.com) references these assets in this way:
-
-![alt text](https://raw.githubusercontent.com/nerdybeast/simple-vf-cli/master/images/dist-html.PNG)
-
-The javascript and css assets needed to make this app render properly are accessed via these paths:
-
-* `/assets/vendor.css`
-* `/assets/tickets.css`
-* `/assets/vendor.js`
-* `/assets/tickets.js`
-
-You need to update the newly created "Tickets" Visualforce page to reference these assets in this exact same way:
-
-![alt text](https://raw.githubusercontent.com/nerdybeast/simple-vf-cli/master/images/newpage-updated.PNG)
+**NOTE: Check the wiki in this repo to see a tutorial for your specific build system.**
 
 #### serve
 
