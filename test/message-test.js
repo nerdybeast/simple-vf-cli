@@ -20,4 +20,18 @@ describe('Testing "../lib/message" module', function() {
         message.stop();
         chai.expect(message._isAlive).to.equal(true);
     });
+
+    it('Starting the message again without new text should use the previous text', function() {
+        message.start();
+        chai.expect(message._message.text).to.equal(initialText);
+    });
+
+    it('Starting the message again without new text should use the previous text', function() {
+        message.stop();
+
+        let newText = 'Here is a new message';
+        message.start(newText);
+        
+        chai.expect(message._message.text).to.equal(newText);
+    });
 });
