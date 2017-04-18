@@ -40,6 +40,12 @@ commander
     .action(flow.deployApp);
 
 commander
+    .command('list')
+    .alias('ls')
+    .description('Lists all org and page entries.')
+    .action(flow.list);
+
+commander
     .command('clear')
     .alias('c')
     .description('Clears all org and page entries.')
