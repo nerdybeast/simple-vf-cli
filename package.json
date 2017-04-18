@@ -31,6 +31,7 @@
     "dotenv": "4.0.0",
     "fs-extra": "2.1.2",
     "inquirer": "1.2.3",
+    "inquirer-select-directory": "1.0.2",
     "jsforce": "1.7.1",
     "jsonfile": "2.4.0",
     "lodash": "4.17.2",
