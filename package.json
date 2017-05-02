@@ -14,7 +14,7 @@
     "node": ">=6.0.0"
   },
   "bin": {
-    "svf": "./index.js"
+    "svf": "./dist/index.js"
   },
   "preferGlobal": true,
   "scripts": {
@@ -65,7 +65,8 @@
     "chai-as-promised": "6.0.0",
     "debug": "2.3.3",
     "mocha": "3.2.0",
-    "nyc": "10.0.0"
+    "nyc": "10.0.0",
+    "typescript": "2.3.2"
   },
   "appSettings": {
     "rollbarAuthToken": "b72b2c6315f44123a5f619797e82c2ff",

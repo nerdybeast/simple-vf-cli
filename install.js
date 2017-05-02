@@ -9,13 +9,14 @@ const db = require('./lib/db');
 const debug = require('debug')('svf:info install');
 
 fs.ensureDirSync(dbPath);
+let envPath = path.join(dbPath, '.env');
 
 require('dotenv').config({
-    path: path.join(dbPath, '.env')
+    path: envPath
 });
 
 if('ALLOW_ERROR_TRACKING' in process.env) {
-   return process.exit(0);
+    return process.exit(0);
 }
 
 let answers;
@@ -64,6 +65,6 @@ inquirer.prompt([{
         `ALLOW_ERROR_TRACKING=${config.ALLOW_ERROR_TRACKING}`
     ];
     
-    fs.writeFileSync(path.join(dbPath, '.env'), fileContents.join('\n'), 'utf8');
+    fs.writeFileSync(envPath, fileContents.join('\n'), 'utf8');
 
 });
