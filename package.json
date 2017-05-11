@@ -50,7 +50,7 @@
     "pouchdb": "6.1.0",
     "pouchdb-find": "0.10.4",
     "randomstring": "1.1.5",
-    "rollbar": "0.6.3"
+    "rollbar": "0.6.6"
   },
   "devDependencies": {
     "@types/archiver": "0.15.37",
@@ -80,9 +80,5 @@
     "mocha": "3.2.0",
     "nyc": "10.0.0",
     "typescript": "2.3.2"
-  },
-  "appSettings": {
-    "rollbarAuthToken": "b72b2c6315f44123a5f619797e82c2ff",
-    "useIsFatalFilter": false
   }
 }
