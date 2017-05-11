@@ -72,7 +72,7 @@ images
 test
 
 # Typescript files used only during development
-lib
+/lib
 *.ts
 
 # Various project configuration
