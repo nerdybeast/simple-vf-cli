@@ -26,7 +26,8 @@
   "scripts": {
     "start": "node ./node_modules/gulp/bin/gulp",
     "test": "nyc --reporter=text mocha",
-    "prepublish": "npm test",
+    "build": "npm run gulp:static",
+    "prepublish": "npm run build && npm test",
     "postinstall": "node ./dist/install",
     "gulp:scripts": "node ./node_modules/gulp/bin/gulp scripts",
     "gulp:static": "node ./node_modules/gulp/bin/gulp static",

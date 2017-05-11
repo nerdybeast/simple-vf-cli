@@ -57,18 +57,12 @@ typings
 # Temp directory for build output
 temp
 
-# Npm config that is specific to this project.
-# Ignored because it holds auth credentials to Vivint's internal npm registry.
-.npmrc
-
-# Build output directory for Typescript experiment.
-dist
-
 #############################################################################################################
 # Everything below this line are additional resources we do not want installed on the users machine when they
 # install the package gloabally.
 #############################################################################################################
 
+# Used on the web only
 images
 
 # The test directory is only used for people contributing to the project, not needed for casual users.
