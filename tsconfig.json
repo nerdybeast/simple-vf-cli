@@ -7,8 +7,6 @@
 		//Adds 'use strict' to each compiled output file.
 		"alwaysStrict": true,
 
-		"outDir": "dist",
-
 		//Targeting es6 because we are forcing users to use at least node version 6+ to use this cli.
 		"target": "es6",
 
@@ -21,16 +19,7 @@
 
 	"include": [
 		"lib/**/*", 
-		"index.js", 
-		"install.js"
+		"index.ts", 
+		"install.ts"
 	]
-
-	// "exclude": [
-	// 	"coverage",
-	// 	"dist",
-	// 	"images",
-	// 	"node_modules",
-	// 	"temp",
-	// 	"test"
-	// ]
 }
