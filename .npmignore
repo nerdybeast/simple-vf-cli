@@ -58,6 +58,9 @@ typings
 temp
 
 #############################################################################################################
+# Everything above this line needs to match the .gitignore file exactly that way we do not install unneeded
+# dev dependencies on the user's machine when they install this package globally.
+# 
 # Everything below this line are additional resources we do not want installed on the users machine when they
 # install the package gloabally.
 #############################################################################################################
@@ -67,3 +70,14 @@ images
 
 # The test directory is only used for people contributing to the project, not needed for casual users.
 test
+
+# Typescript files used only during development
+lib
+*.ts
+
+# Various project configuration
+.gitattributes
+.gitignore
+gulpfile.js
+*.md
+tsconfig.json
