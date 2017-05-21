@@ -3,8 +3,8 @@ const chalk = require('chalk');
 
 class Message {
 
-	private _message;
-	private _isAlive: boolean;
+	_message: any;
+	_isAlive: boolean;
 
 	constructor() {
 		this._init();
