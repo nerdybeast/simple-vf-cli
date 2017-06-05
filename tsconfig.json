@@ -1,0 +1,25 @@
+{
+	"compilerOptions": {
+		
+		//Allows Typescript to compile .js files.
+		"allowJs": true,
+
+		//Adds 'use strict' to each compiled output file.
+		"alwaysStrict": true,
+
+		//Targeting es6 because we are forcing users to use at least node version 6+ to use this cli.
+		"target": "es6",
+
+		//We want to target es6 but since we are in the context of node, we need to force this to common.js
+		"module": "commonjs",
+
+		//We need our output to have *nix style line endings so that this cli can be ran on all operating systems.
+		"newLine": "LF"
+	},
+
+	"include": [
+		"lib/**/*", 
+		"index.ts", 
+		"install.ts"
+	]
+}

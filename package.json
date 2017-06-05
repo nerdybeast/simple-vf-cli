@@ -1,6 +1,6 @@
 {
   "name": "simple-vf-cli",
-  "version": "0.5.1",
+  "version": "0.6.0-beta.5",
   "description": "A simple cli tool for building visualforce pages locally using cutting edge front-end build systems.",
   "author": "therealnerdybeast@gmail.com",
   "main": "index.js",
@@ -21,12 +21,17 @@
     "node": ">=6.0.0"
   },
   "bin": {
-    "svf": "./index.js"
+    "svf": "./dist/index.js"
   },
   "scripts": {
-    "test": "nyc --reporter=text mocha",
-    "prepublish": "npm test",
-    "postinstall": "node install"
+    "start": "node ./node_modules/gulp/bin/gulp",
+    "test": "jest",
+    "build": "npm run gulp:static",
+    "prepublish": "npm run build",
+    "postinstall": "node ./dist/install",
+    "gulp:scripts": "node ./node_modules/gulp/bin/gulp scripts",
+    "gulp:static": "node ./node_modules/gulp/bin/gulp static",
+    "gulp:watch": "node ./node_modules/gulp/bin/gulp watch"
   },
   "dependencies": {
     "archiver": "1.2.0",
@@ -40,14 +45,13 @@
     "jsforce": "1.7.1",
     "jsonfile": "2.4.0",
     "lodash": "4.17.2",
-    "mocha": "3.2.0",
     "ngrok": "2.2.4",
     "node-watch": "0.4.1",
     "ora": "1.2.0",
     "pouchdb": "6.1.0",
     "pouchdb-find": "0.10.4",
     "randomstring": "1.1.5",
-    "rollbar": "0.6.3"
+    "rollbar": "0.6.6"
   },
   "devDependencies": {
     "@types/archiver": "0.15.37",
@@ -60,7 +64,10 @@
     "@types/debug": "0.0.29",
     "@types/dotenv": "2.0.20",
     "@types/fs-extra": "2.0.0",
+    "@types/gulp": "4.0.2",
+    "@types/gulp-typescript": "2.13.0",
     "@types/inquirer": "0.0.32",
+    "@types/jest": "19.2.3",
     "@types/lodash": "4.14.62",
     "@types/mocha": "2.2.40",
     "@types/ora": "0.3.31",
@@ -70,11 +77,22 @@
     "chai": "3.5.0",
     "chai-as-promised": "6.0.0",
     "debug": "2.3.3",
+    "gulp": "3.9.1",
+    "gulp-typescript": "3.1.6",
+    "jest": "20.0.1",
     "mocha": "3.2.0",
-    "nyc": "10.0.0"
+    "nyc": "10.0.0",
+    "ts-jest": "20.0.3",
+    "typescript": "2.3.2"
   },
-  "appSettings": {
-    "rollbarAuthToken": "b72b2c6315f44123a5f619797e82c2ff",
-    "useIsFatalFilter": false
+  "jest": {
+    "transform": {
+      ".ts": "<rootDir>/node_modules/ts-jest/preprocessor.js"
+    },
+    "testRegex": "tests/.*\\.test\\.ts",
+    "moduleFileExtensions": [
+      "ts",
+      "js"
+    ]
   }
 }
