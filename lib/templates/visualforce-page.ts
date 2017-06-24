@@ -1,6 +1,11 @@
-export default function(pageName: string) : string {
-	return `
-<apex:page controller="${pageName}Controller" showHeader="false" standardStylesheets="false" sidebar="false" applyHtmlTag="false" applyBodyTag="false" docType="html-5.0">
+import controllerTemplate from './controller';
+
+export default function(pageName: string) : any {
+	
+	let controller = controllerTemplate(pageName);
+
+	return { name: pageName, body: `
+<apex:page controller="${controller.name}" showHeader="false" standardStylesheets="false" sidebar="false" applyHtmlTag="false" applyBodyTag="false" docType="html-5.0">
 	<html>
 		<head>
 			
@@ -20,5 +25,5 @@ export default function(pageName: string) : string {
 		</body>
 	</html>
 </apex:page>
-`;
+`};
 }

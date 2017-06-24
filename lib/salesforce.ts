@@ -3,6 +3,7 @@ const path = require('path');
 const jsforce = require('jsforce');
 const Promise = require('bluebird');
 const cryptoJS = require('crypto-js');
+const _ = require('lodash');
 const debug = require('debug')('svf:info salesforce');
 
 import * as cli from './cli';
@@ -75,47 +76,86 @@ class Salesforce {
 				return Promise.resolve(queryResult.records[0].Id);
 			}
 
+			let newApexPage;
+			let createdResources = [];
+
 			return this.processCustomSettings().then(() => {
 			
-				let apexClass = this.conn.sobject('ApexClass').create({
-					Name: page.name,
-					Body: templates.controller(page.name)
+				let options = templates.controller(page.name);
+
+				return this.createSobject('ApexClass', {
+					Name: options.name,
+					Body: options.body
 				});
+
+			}).then(controllerClass => {
+
+				debug(`controllerClass => %o`, controllerClass);
+
+				createdResources.push({ order: 4, type: 'ApexClass', id: controllerClass.id, isTooling: false });
 
 				let bitmap = fs.readFileSync(path.join(__dirname, 'static/placeholder.txt'));
 				let staticResourceContent = new Buffer(bitmap).toString('base64');
 				let staticResourceOptions = this.createStaticResourceOptions(page, 'text/plain', staticResourceContent);
-				let staticResource = this.conn.tooling.sobject('StaticResource').create(staticResourceOptions);
+				
+				return this.createSobject('StaticResource', staticResourceOptions, true);
 
-				return Promise.props({ apexClass, staticResource });
+			}).then(staticResource => {
 
-			}).then(result => {
+				debug(`staticResource => %o`, staticResource);
 
-				debug(`apexClass & staticResource => %o`, result);
+				createdResources.push({ order: 2, type: 'StaticResource', id: staticResource.id, isTooling: true });
 
-				let apexPage = this.conn.sobject('ApexPage').create({
-					Name: page.name,
-					MasterLabel: page.name,
-					Markup: templates.visualforcePage(page.name)
+				let options = templates.visualforcePage(page.name);
+
+				return this.createSobject('ApexPage', {
+					Name: options.name,
+					MasterLabel: options.name,
+					Markup: options.body
 				});
 
-				let controllerTest = this.conn.sobject('ApexClass').create({
-					Name: page.name,
-					Body: templates.controllerTest(page.name)
+			}).then(apexPage => {
+
+				debug(`apexPage => %o`, apexPage);
+
+				createdResources.push({ order: 1, type: 'ApexPage', id: apexPage.id, isTooling: false });
+
+				newApexPage = apexPage;
+
+				let options = templates.controllerTest(page.name);
+				
+				return this.createSobject('ApexClass', {
+					Name: options.name,
+					Body: options.body
 				});
 
-				return Promise.props({ apexPage, controllerTest });
+			}).then(controllerTestClass => {
 
-			}).then(result => {
+				debug(`controllerTestClass => %o`, controllerTestClass);
 
-				if(result.apexPage.success) {
-					return Promise.resolve(result.apexPage.id);
-				}
+				createdResources.push({ order: 3, type: 'ApexClass', id: controllerTestClass.id, isTooling: false });
 
-				return Promise.reject(result.apexPage);
+				return Promise.resolve(newApexPage.id);
+
+			}).catch(err => {
+
+				let cleanupMap = _.sortBy(createdResources, ['order']);
+
+				return Promise.each(cleanupMap, (resource) => {
+					
+					debug(`deleting ${resource.type} => ${resource.id}`);
+
+					let connection = resource.isTooling ? this.conn.tooling : this.conn;
+					return connection.sobject(resource.type).delete(resource.id);
+
+				}).then(deleteResult => {
+
+					debug(`deleteResult => %o`, deleteResult);
+					return Promise.reject(err);
+
+				});
 
 			});
-
 		});
 	}
 
@@ -272,6 +312,20 @@ class Salesforce {
 		options.body = body;
 
 		return options;
+	}
+
+	createSobject(sobjectName: string, options: any, isTooling: boolean = false) {
+
+		let api = isTooling ? this.conn.tooling : this.conn;
+
+		return api.sobject(sobjectName).create(options).catch(err => {
+
+			if(err.errorCode === 'DUPLICATE_VALUE' && err.message.includes('<unknown>')) {
+				err.message = `Duplicate value found: An Sobject of type "${sobjectName}" already exists with the name "${options.Name}"`;
+			}
+
+			return Promise.reject(err);
+		});
 	}
 }
 

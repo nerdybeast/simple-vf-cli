@@ -1,7 +1,13 @@
-export default function(pageName: string) : string {
-	return `
+import controllerTemplate from './controller';
+
+export default function(pageName: string) : any {
+	
+	let name = `${pageName}Controller_Test`;
+	let controller = controllerTemplate(pageName);
+
+	return { name, body: `
 @isTest
-private class ${pageName}Controller_Test {
+private class ${name} {
 
 	private static final String PAGE_NAME = '${pageName}';
 	private static final String TUNNEL_URL = 'https://tunnel.domain.com';
@@ -26,7 +32,7 @@ private class ${pageName}Controller_Test {
 	static void getSimpleVfPageConfig_FindsSettingSuccessfully() {
 		
 		Test.startTest();
-		Simple_VF_Pages__c pageConfig = ${pageName}Controller.getSimpleVfPageConfig(); 
+		Simple_VF_Pages__c pageConfig = ${controller.name}.getSimpleVfPageConfig(); 
 		Test.stopTest();
 		
 		System.assertNotEquals(null, pageConfig);
@@ -39,7 +45,7 @@ private class ${pageName}Controller_Test {
 		delete Simple_VF_Pages__c.getInstance(PAGE_NAME);
 		
 		Test.startTest();
-		Simple_VF_Pages__c pageConfig = ${pageName}Controller.getSimpleVfPageConfig();
+		Simple_VF_Pages__c pageConfig = ${controller.name}.getSimpleVfPageConfig();
 		Test.stopTest();
 		
 		System.assertEquals(null, pageConfig);
@@ -49,7 +55,7 @@ private class ${pageName}Controller_Test {
 	static void getSimpleVfUserConfig_FindsSettingSuccessfully() {
 		
 		Test.startTest();
-		Simple_VF_Users__c userConfig = ${pageName}Controller.getSimpleVfUserConfig(); 
+		Simple_VF_Users__c userConfig = ${controller.name}.getSimpleVfUserConfig(); 
 		Test.stopTest();
 		
 		System.assertNotEquals(null, userConfig);
@@ -62,7 +68,7 @@ private class ${pageName}Controller_Test {
 		delete Simple_VF_Users__c.getInstance();
 		
 		Test.startTest();
-		Simple_VF_Users__c userConfig = ${pageName}Controller.getSimpleVfUserConfig();
+		Simple_VF_Users__c userConfig = ${controller.name}.getSimpleVfUserConfig();
 		Test.stopTest();
 		
 		System.assertEquals(false, userConfig.DevelopmentMode__c);
@@ -72,7 +78,7 @@ private class ${pageName}Controller_Test {
 	static void getIsUnderDevelopment_PageAndUserInDevMode() {
 
 		Test.startTest();
-		Boolean isUnderDevelopment = ${pageName}Controller.getIsUnderDevelopment();
+		Boolean isUnderDevelopment = ${controller.name}.getIsUnderDevelopment();
 		Test.stopTest();
 
 		System.assertEquals(true, isUnderDevelopment);
@@ -86,7 +92,7 @@ private class ${pageName}Controller_Test {
 		update pageConfig;
 
 		Test.startTest();
-		Boolean isUnderDevelopment = ${pageName}Controller.getIsUnderDevelopment();
+		Boolean isUnderDevelopment = ${controller.name}.getIsUnderDevelopment();
 		Test.stopTest();
 
 		System.assertEquals(false, isUnderDevelopment);
@@ -100,11 +106,11 @@ private class ${pageName}Controller_Test {
 		update userConfig;
 
 		Test.startTest();
-		Boolean isUnderDevelopment = ${pageName}Controller.getIsUnderDevelopment();
+		Boolean isUnderDevelopment = ${controller.name}.getIsUnderDevelopment();
 		Test.stopTest();
 
 		System.assertEquals(false, isUnderDevelopment);
 	}
 }
-	`;
+	`};
 }
