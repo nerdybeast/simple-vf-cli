@@ -1,7 +1,16 @@
-export default function(pageName: string) : string {
-	return `
-public with sharing class ${pageName}Controller {
+export default function(pageName: string) : any {
 	
+	let name = `${pageName}Controller`;
+
+	return { 
+		name, 
+		body: `
+public with sharing class ${name} {
+	
+	public ${name}() { }
+
+	public ${name}(ApexPages.StandardController controller) { }
+
 	public static Simple_VF_Pages__c getSimpleVfPageConfig() {
 		return Simple_VF_Pages__c.getInstance('${pageName}');
 	}
@@ -20,5 +29,5 @@ public with sharing class ${pageName}Controller {
 		return page.DevelopmentMode__c && user.DevelopmentMode__c;
 	}
 }
-	`;
+	`};
 }
