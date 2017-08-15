@@ -20,7 +20,7 @@ class Watcher {
 		this._watcher = watch(this._filePath);
 		debug(`Watcher started for path: ${chalk.cyan(this._filePath)}`);
 
-		this._watcher.on('change', (file) => {
+		this._watcher.on('change', (event, file) => {
 			debug(`File Change: ${file}`);
 		});
 
