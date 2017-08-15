@@ -15,6 +15,7 @@ import Salesforce from './salesforce';
 import Ngrok from './ngrok';
 import Watcher from './watcher';
 import deploy from './deploy';
+import { determineBuildSystem } from './plugins';
 
 export function auth(orgName, allowOtherOption) {
 
@@ -79,7 +80,9 @@ export function newPage(pageName, org) {
 			org = resolvedOrg;
 			return _resolvePageName(pageName);
 
-		}).then(resolvedPageName => {
+		}).then(async resolvedPageName => {
+
+			let plugin = await determineBuildSystem();
 
 			pageName = resolvedPageName;
 			return _resolveVisualforcePage(pageName, org);

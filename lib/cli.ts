@@ -75,6 +75,21 @@ let questions = {
 			name: 'production',
 			value: 'https://login.salesforce.com'
 		}]
+	},
+	plugin: {
+		type: 'list',
+		name: 'plugin',
+		message: 'Build system:',
+		choices: [{
+			name: 'ember-cli',
+			value: {
+				name: '@svf/plugin-ember-cli',
+				
+			}
+		}, {
+			name: 'other',
+			value: null
+		}]
 	}
 };
 
@@ -324,4 +339,8 @@ export function getSecurityToken(questionVerbage: string) : Promise<string> {
 		m.start();
 		return Promise.resolve(answers.securityToken);
 	});
+}
+
+export function getBuildSystem() : Promise<string> {
+	return _base([questions.plugin]).then(answers => Promise.resolve(answers.plugin));
 }
