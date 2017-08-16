@@ -84,11 +84,14 @@ let questions = {
 			name: 'ember-cli',
 			value: {
 				name: '@svf/plugin-ember-cli',
-				
+				label: 'ember-cli plugin'
 			}
 		}, {
 			name: 'other',
-			value: null
+			value: {
+				name: 'default',
+				label: 'default'
+			}
 		}]
 	}
 };
@@ -341,6 +344,6 @@ export function getSecurityToken(questionVerbage: string) : Promise<string> {
 	});
 }
 
-export function getBuildSystem() : Promise<string> {
+export function getBuildSystem() : Promise<any> {
 	return _base([questions.plugin]).then(answers => Promise.resolve(answers.plugin));
 }

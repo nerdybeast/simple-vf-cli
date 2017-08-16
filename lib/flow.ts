@@ -85,7 +85,7 @@ export function newPage(pageName, org) {
 			let plugin = await determineBuildSystem();
 
 			pageName = resolvedPageName;
-			return _resolveVisualforcePage(pageName, org);
+			return _resolveVisualforcePage(pageName, org, plugin);
 
 		}).then(resolvedPage => {
 
@@ -363,7 +363,7 @@ function _processAuth(orgName) {
 
 }
 
-function _resolveVisualforcePage(pageName, org) {
+function _resolveVisualforcePage(pageName, org, plugin) {
 
 	debug(`_resolveVisualforcePage() => pageName:`, pageName);
 	debug(`_resolveVisualforcePage() => org:`, org);
@@ -371,34 +371,53 @@ function _resolveVisualforcePage(pageName, org) {
 	let errors = [];
 	if(!pageName) errors.push(`"pageName" parameter must contain a value (given: ${pageName})`);
 	if(!org) errors.push(`"org" parameter must be an instance of an org object (given: ${org})`);
-	if(errors.length > 0) return Bluebird.reject(new Error(`Errors occurred calling flow._resolveVisualforcePage => ${errors.join(', ')}.`));
+	if(errors.length > 0) return Promise.reject(new Error(`Errors occurred calling flow._resolveVisualforcePage => ${errors.join(', ')}.`));
 
 	return db.find({
 		selector: {
 			name: pageName,
 			belongsTo: org._id
 		}
-	}).then(queryResult => {
+	}).then(async queryResult => {
 		
-		let doc = queryResult.docs.length > 0 ? queryResult.docs[0] : null;
-		return Bluebird.resolve(doc);
+		if(queryResult.docs.length > 0) {
+			
+			let doc = queryResult.docs[0];
+
+			if(!doc.plugin) {
+				doc.plugin = plugin.name;
+				doc = await db.update(doc);
+			}
+
+			return Promise.resolve(doc);
+		}
+
+		return Promise.resolve({
+			name: pageName,
+			plugin: plugin.name
+		});
 	
 	}).then(page => {
 
-		page = page || { name: pageName };
 		return _resolvePageObject(page, org);
 
 	});
 }
 
-function _resolvePageObject(page, org) {
+async function _resolvePageObject(page, org) {
 	
 	debug(`_resolvePageObject() => page:`, page);
 	debug(`_resolvePageObject() => org:`, org);
 
-	if(page._id) return Bluebird.resolve(page);
+	if(page._id) return Promise.resolve(page);
 
-	return cli.getPageDetails(page.name).then(answers => {
+	let pluginName = page.plugin === 'default' ? './built-in-plugins/default' : page.plugin;
+	debug(`_resolvePageObject() => pluginName:`, pluginName);
+
+	const plugin = await import(pluginName);
+	debug(`_resolvePageObject() => plugin:`, plugin);
+
+	return plugin.default.pageConfig().then(answers => {
 
 		debug(`_resolvePageObject() => getPageDetails answers:`, answers);
 
@@ -409,7 +428,8 @@ function _resolvePageObject(page, org) {
 			name: answers.pageName,
 			port: Number(answers.port),
 			outputDir: answers.outputDir,
-			staticResourceId: null
+			staticResourceId: null,
+			plugin: page.plugin
 		});
 
 	}).then(postResult => {
@@ -429,11 +449,12 @@ function _deployNewPage(org, page) {
 	let errors = [];
 	if(!org) errors.push(`"org" parameter must contain a value (given: ${org})`);
 	if(!page) errors.push(`"page" parameter must contain a value (given: ${page})`);
-	if(errors.length > 0) return Bluebird.reject(new Error(`Errors occurred calling flow._deployNewPage => ${errors.join(', ')}.`));
+	if(errors.length > 0) return Promise.reject(new Error(`Errors occurred calling flow._deployNewPage => ${errors.join(', ')}.`));
 
 	m.start(`Deploying new page ${chalk.cyan(page.name)}...`);
 
 	let sf = new Salesforce(org);
+
 	return sf.deployNewPage(page).then(pageId => {
 
 		page.salesforceId = pageId;
@@ -442,14 +463,14 @@ function _deployNewPage(org, page) {
 	}).then(updatedPage => {
 
 		m.success(`Successfully created page ${chalk.cyan(page.name)} ${chalk.cyan(`(Id: ${updatedPage.salesforceId})`)}`);
-		return Bluebird.resolve(updatedPage);
+		return Promise.resolve(updatedPage);
 
 	}).catch(err => {
 
 		debug(`_deployNewPage err => %o`, err);
 
 		m.fail(`Failed to create page!`);
-		return Bluebird.reject(err);
+		return Promise.reject(err);
 
 	});
 
