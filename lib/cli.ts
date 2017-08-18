@@ -9,23 +9,32 @@ import db from './db';
 import m from './message';
 import Org from './models/org';
 
+function validateInput(userInput: string, errorMessage: string = 'Please enter a value') : boolean|string {
+	userInput = (userInput || '').trim();
+	let isValid = (userInput && userInput.length > 0);
+	return isValid || errorMessage;
+}
+
 let questions = {
 	
-	username(username) {
+	username(username?: string) {
 		
 		let suffix = username ? ` (default: ${chalk.cyan(username)})` : '';
 
 		return {
 			type: 'input',
 			name: 'username',
-			message: `Username${suffix}:`
+			message: `Username${suffix}:`,
+			default: username,
+			validate(userInput) { return validateInput(userInput, 'Username must contain a value'); }
 		};
 	},
 
 	password: {
 		type: 'password',
 		name: 'password',
-		message: 'Password:'
+		message: 'Password:',
+		validate(userInput) { return validateInput(userInput, 'Password must contain a value'); }
 	},
 
 	getSecurityToken(questionVerbage: string = 'Security Token', securityToken?: string) {
@@ -39,11 +48,25 @@ let questions = {
 		};
 	},
 
-	port: {
-		type: 'input',
-		name: 'port',
-		message: 'Port that your localhost resource runs on (ex: 8080):'
+	port(portNumber?: number) {
+
+		let suffix = portNumber ? `(default: ${chalk.cyan(portNumber)})` : `(example: 8080)`;
+
+		return {
+			type: 'input',
+			name: 'port',
+			message: `Port your local build system serves up on ${suffix}, value must be a number:`,
+			default: portNumber,
+			validate(userInput) {
+				userInput = (userInput || '').trim();
+				let hasValue = (userInput && userInput.length > 0);
+				if(!hasValue) return 'Please enter a port number';
+				if(!Number.isInteger(Number(userInput))) return 'Port must contain numbers only';
+				return true;
+			}
+		};
 	},
+
 	outputDir: {
 		type: 'input',
 		name: 'outputDir',
@@ -54,10 +77,17 @@ let questions = {
 		name: 'page',
 		message: 'Name of the visualforce page you\'re working on:'
 	},
-	orgName: {
-		type: 'input',
-		name: 'orgName',
-		message: 'Please enter the name of the org (can be a simple alias):'
+	orgName(orgName?: string, questionVerbage?: string) {
+		
+		let suffix = orgName ? `(default: ${chalk.cyan(orgName)})` : '';
+
+		return {
+			type: 'input',
+			name: 'orgName',
+			message: questionVerbage || `Please enter a name to act as an alias for this org${suffix}:`,
+			default: orgName,
+			validate(userInput) { return validateInput(userInput, 'Org name must contain a value'); }
+		};
 	},
 	deleteDatabase: {
 		type: 'confirm',
@@ -82,16 +112,10 @@ let questions = {
 		message: 'Build system:',
 		choices: [{
 			name: 'ember-cli',
-			value: {
-				name: '@svf/plugin-ember-cli',
-				label: 'ember-cli plugin'
-			}
+			value: '@svf/plugin-ember-cli'
 		}, {
 			name: 'other',
-			value: {
-				name: 'default',
-				label: 'default'
-			}
+			value: 'default'
 		}]
 	}
 };
@@ -138,7 +162,7 @@ function _resolveOutputDirectory(outputDir?: string) {
 			return _base([{
 				type: 'confirm',
 				name: 'confirmOutputDir',
-				message: `The output directory ${chalk.cyan(outputDir)} doesn\'t exist, continue?`
+				message: `The output directory ${chalk.cyan(outputDir)} doesn\'t exist yet, continue anyway? Select "no" to re-enter the path to the build system ouput directory:`
 			}]).then(answer => {
 
 				debug(`confirm answer => %o`, answer);
@@ -164,15 +188,6 @@ export function resolveOutputDirectory(outputDir: string) : Promise<string> {
 
 export function askBasicInput(options: any) : Promise<any> {
 	return _base([Question.basicInput(options)]);
-}
-
-/**
- * Asks the user to enter a new org name.
- */
-export function getOrgName() : Promise<string> {
-	return _base([questions.orgName]).then(answers => {
-		return answers.orgName;
-	});
 }
 
 export function getOrgCredentials(org?: Org) : Promise<string[]> {
@@ -209,14 +224,16 @@ export function getOrgCredentials(org?: Org) : Promise<string[]> {
 }
 
 export function getNgrokTunnelDetails() : Promise<any> {
-	return _base([questions.port, questions.vfPageName]);
+	return _base([questions.port(), questions.vfPageName]);
 }
 
 /**
  * Asks the user to select an authed org.
  */
-export function orgSelection(includeNewChoice: boolean = true) : Promise<Org> {
+export function orgSelection(userMessage: string = 'Choose an org:', includeNewChoice: boolean = true) : Promise<Org> {
 	
+	debug(`orgSelection() userMessage => ${userMessage}`);
+
 	return db.find({
 		selector: { type: 'auth' }
 	}).then(searchResult => {
@@ -242,7 +259,7 @@ export function orgSelection(includeNewChoice: boolean = true) : Promise<Org> {
 		return _base([{
 			type: 'list',
 			name: 'orgChoice',
-			message: 'Choose an org:',
+			message: userMessage,
 			choices: orgs
 		}]).then(answers => {
 			return answers.orgChoice;
@@ -297,6 +314,9 @@ export function resolvePageName(pageName: string) : Promise<string> {
 	return _resolvePageName(pageName);
 }
 
+/**
+ * Retrieves the page config details like name, port, output directory. This method is used by the default plugin.
+ */
 export function getPageDetails(pageName: string) : Promise<any> {
 	
 	let port;
@@ -305,7 +325,7 @@ export function getPageDetails(pageName: string) : Promise<any> {
 
 		pageName = resolvedPageName;
 
-		return _base([questions.port]);
+		return _base([questions.port()]);
 
 	}).then(answers => {
 
@@ -344,6 +364,21 @@ export function getSecurityToken(questionVerbage: string) : Promise<string> {
 	});
 }
 
-export function getBuildSystem() : Promise<any> {
-	return _base([questions.plugin]).then(answers => Promise.resolve(answers.plugin));
+export function getBuildSystem() : Promise<string> {
+	return _base([questions.plugin]).then(answers => {
+		let pluginName = answers.plugin;
+		debug(`build system => ${pluginName}`);
+		return pluginName;
+	});
+}
+
+//----------------------------------
+
+export function resolveOrgName(orgName?: string) : Promise<string> {
+
+	if(orgName) return Promise.resolve(orgName);
+
+	return _base([questions.orgName()]).then(answers => {
+		return answers.orgName;
+	});
 }

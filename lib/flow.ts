@@ -1,10 +1,10 @@
-const Bluebird = require('bluebird');
 const jsforce = require('jsforce');
 const chalk = require('chalk');
 const cryptoJs = require('crypto-js');
 const _ = require('lodash');
 const debug = require('debug')('svf:info flow');
 
+import { props } from 'bluebird';
 import db from './db';
 import { default as rollbar } from './rollbar';
 import ErrorMetadata from './models/error-metadata';
@@ -33,20 +33,21 @@ export function auth(orgName, allowOtherOption) {
 
 		allowOtherOption = (typeof allowOtherOption === 'boolean') ? allowOtherOption : true;
 
-		return _resolveOrgName(orgName, allowOtherOption).then(resolvedOrgName => {
+		// return _resolveOrgName(orgName, 'Choose which org to authenticate with:', allowOtherOption).then(resolvedOrgName => {
 			
-			//Will be "truthy" if the user supplied an org name with the auth command (ex: `svf auth myOrg`)
-			//or they chose an existing org name from the list of already authed orgs.
-			if(resolvedOrgName) {
-				return Bluebird.resolve(resolvedOrgName);
-			}
+		// 	//Will be "truthy" if the user supplied an org name with the auth command (ex: `svf auth myOrg`)
+		// 	//or they chose an existing org name from the list of already authed orgs.
+		// 	if(resolvedOrgName) {
+		// 		return Promise.resolve(resolvedOrgName);
+		// 	}
 
-			//Will prompt the user to enter the new org name. Reaching this point means the user did not enter
-			//an org name with the auth command and they chose the "other" option when selecting from the list
-			//of already authed orgs.
-			return cli.getOrgName();
+		// 	//Will prompt the user to enter the new org name. Reaching this point means the user did not enter
+		// 	//an org name with the auth command and they chose the "other" option when selecting from the list
+		// 	//of already authed orgs.
+		// 	return cli.getOrgName();
 
-		}).then(selectedOrgName => {
+		// })
+		return cli.resolveOrgName(orgName).then(selectedOrgName => {
 
 			//Will execute a login request for the current org and save it to the database.
 			return _processAuth(selectedOrgName);
@@ -71,7 +72,7 @@ export function newPage(pageName, org) {
 
 		let orgName = (org && "_id" in org) ? org.name : null;
 
-		return _resolveOrgName(orgName, true).then(resolvedOrgName => {
+		return _resolveOrgName(orgName, 'Choose destination org for the new Visualforce page:', true).then(resolvedOrgName => {
 
 			return _validateIfOrgIsAuthed(resolvedOrgName);
 
@@ -82,10 +83,10 @@ export function newPage(pageName, org) {
 
 		}).then(async resolvedPageName => {
 
-			let plugin = await determineBuildSystem();
+			let pluginName = await determineBuildSystem();
 
 			pageName = resolvedPageName;
-			return _resolveVisualforcePage(pageName, org, plugin);
+			return _resolveVisualforcePage(pageName, org, pluginName);
 
 		}).then(resolvedPage => {
 
@@ -112,7 +113,7 @@ export function serve(orgName) {
 		let org;
 
 		//Will ask the user to enter an org name if they did not give one with the serve command.
-		return _resolveOrgName(orgName, true).then(resolvedOrgName => {
+		return _resolveOrgName(orgName, undefined, true).then(resolvedOrgName => {
 			
 			//Will make sure that the org is authed.
 			return _validateIfOrgIsAuthed(resolvedOrgName);
@@ -128,7 +129,7 @@ export function serve(orgName) {
 				return newPage(null, org);
 			}
 
-			return Bluebird.resolve(pageSelection);
+			return Promise.resolve(pageSelection);
 
 		}).then(resolvedPage => {
 
@@ -158,11 +159,11 @@ export function deleteDatabase() {
 			if(shouldDelete) {
 				return db.destroy().then(destroyResult => {
 					debug(`Database destroy result => %o`, destroyResult);
-					return Bluebird.resolve('Delete successful.');
+					return Promise.resolve('Delete successful.');
 				});
 			}
 
-			return Bluebird.resolve('Delete cancelled.');
+			return Promise.resolve('Delete cancelled.');
 
 		}).then(deleteResult => {
 
@@ -185,7 +186,7 @@ export function deployApp() {
 
 		let org;
 
-		return cli.orgSelection(false).then(orgChoice => {
+		return cli.orgSelection(null, false).then(orgChoice => {
 
 			org = orgChoice;
 			return cli.getPageSelectionByOrg(org, false);
@@ -197,7 +198,7 @@ export function deployApp() {
 		}).then(result => {
 
 			debug(`deploy result => %o`, result);
-			return Bluebird.resolve(result);
+			return Promise.resolve(result);
 
 		}).catch(err => {
 			rollbar.exception(err, meta, () => m.catchError(err));
@@ -210,7 +211,7 @@ export function deployApp() {
 
 export function list() {
 
-	Bluebird.props({
+	props({
 		orgs: db.getAllOrgs(),
 		pages: db.getAllPages()
 	}).then(hash => {
@@ -254,19 +255,19 @@ export function list() {
  * @description Prompts the user to enter an org name if one was not supplied.
  * @returns string
  */
-function _resolveOrgName(orgName, allowOther) {
+function _resolveOrgName(orgName: string, userMessage?: string, allowOther?: boolean) : Promise<string> {
 	
 	debug(`_resolveOrgName() => orgName:`, orgName);
 	debug(`_resolveOrgName() => allowOther:`, allowOther);
 
 	//Will be true if the user did supply the org name with the command.
-	if(orgName) { return Bluebird.resolve(orgName); }
+	if(orgName) { return Promise.resolve(orgName); }
 	
 	//Prompts the user to select an authed org or "other".
-	return cli.orgSelection(allowOther).then(selectedOrg => {
+	return cli.orgSelection(userMessage, allowOther).then(selectedOrg => {
 		
 		//NOTE: "selectedOrg" will be null if the user chose the "other" option.
-		return Bluebird.resolve(selectedOrg !== null ? selectedOrg.name : null);
+		return Promise.resolve(selectedOrg !== null ? selectedOrg.name : null);
 
 	});
 }
@@ -280,13 +281,13 @@ function _resolvePageName(pageName) {
 	debug(`_resolvePageName() => pageName:`, pageName);
 
 	//Will be true if the user did supply the page name with the command.
-	if(pageName) { return Bluebird.resolve(pageName); }
+	if(pageName) { return Promise.resolve(pageName); }
 	
 	//Prompts the user to select an authed org or "other".
 	return cli.resolvePageName(pageName).then(selectedPageName => {
 		
 		//NOTE: "selectedPageName" will be null if the user chose the "other" option.
-		return Bluebird.resolve(selectedPageName);
+		return Promise.resolve(selectedPageName);
 
 	});
 }
@@ -329,7 +330,7 @@ function _processAuth(orgName) {
 
 		m.start('Authenticating into org...');
 
-		return Bluebird.props({
+		return props({
 			loginResult: conn.login(credentials.username, password),
 			encryptionKey: db.getEncryptionKey()
 		});
@@ -354,16 +355,16 @@ function _processAuth(orgName) {
 
 	}).then(() => {
 
-		return Bluebird.resolve(org);
+		return Promise.resolve(org);
 
 	}).catch(err => {
 		m.fail(`Authentication to ${chalk.cyan(orgName)} failed.`);
-		return Bluebird.reject(err);
+		return Promise.reject(err);
 	});
 
 }
 
-function _resolveVisualforcePage(pageName, org, plugin) {
+function _resolveVisualforcePage(pageName, org, pluginName) {
 
 	debug(`_resolveVisualforcePage() => pageName:`, pageName);
 	debug(`_resolveVisualforcePage() => org:`, org);
@@ -385,7 +386,7 @@ function _resolveVisualforcePage(pageName, org, plugin) {
 			let doc = queryResult.docs[0];
 
 			if(!doc.plugin) {
-				doc.plugin = plugin.name;
+				doc.plugin = pluginName;
 				doc = await db.update(doc);
 			}
 
@@ -394,7 +395,7 @@ function _resolveVisualforcePage(pageName, org, plugin) {
 
 		return Promise.resolve({
 			name: pageName,
-			plugin: plugin.name
+			pluginName
 		});
 	
 	}).then(page => {
@@ -411,25 +412,25 @@ async function _resolvePageObject(page, org) {
 
 	if(page._id) return Promise.resolve(page);
 
-	let pluginName = page.plugin === 'default' ? './built-in-plugins/default' : page.plugin;
+	let pluginName = page.pluginName === 'default' ? './built-in-plugins/default' : page.pluginName;
 	debug(`_resolvePageObject() => pluginName:`, pluginName);
 
 	const plugin = await import(pluginName);
 	debug(`_resolvePageObject() => plugin:`, plugin);
 
-	return plugin.default.pageConfig().then(answers => {
+	return plugin.default.pageConfig().then(pageConfig => {
 
-		debug(`_resolvePageObject() => getPageDetails answers:`, answers);
+		debug(`_resolvePageObject() => getPageDetails pageConfig:`, pageConfig);
 
 		//TODO: Error handling if this page already exists under this org...
 		return db.post({
 			type: 'page',
 			belongsTo: org._id,
-			name: answers.pageName,
-			port: Number(answers.port),
-			outputDir: answers.outputDir,
+			name: pageConfig.name,
+			port: Number(pageConfig.port),
+			outputDir: pageConfig.outputDirectory,
 			staticResourceId: null,
-			plugin: page.plugin
+			pluginName: page.pluginName
 		});
 
 	}).then(postResult => {
@@ -484,11 +485,11 @@ function _startTunnel(org, page) {
 	m.start('Starting ngrok tunnel...')
 
 	let sf = new Salesforce(org);
-	let watcher = new Watcher(page.outputDir);
+	let watcher = new Watcher(page);
 	let ngrok = new Ngrok(page.port);
 	let url;
 
-	return Bluebird.props({
+	return props({
 		url: ngrok.connect(),
 		customSettings: sf.processCustomSettings()
 	}).then(hash => {
@@ -525,7 +526,7 @@ function _startTunnel(org, page) {
 		}
 
 		watcher.stop();
-		return Bluebird.props(promiseHash);
+		return props(promiseHash);
 
 	}).catch(err => {
 
@@ -534,7 +535,7 @@ function _startTunnel(org, page) {
 
 		m.fail('Failed to establish tunnel');
 		
-		return Bluebird.reject(err);
+		return Promise.reject(err);
 	});
 }
 
@@ -559,11 +560,11 @@ function _togglePageSettings(org, page, url, developmentMode) {
 
 	}).catch(err => {
 		m.fail(`An error occurred communicating with ${chalk.cyan(org.name)}`);
-		return Bluebird.reject(err);
+		return Promise.reject(err);
 	});
 }
 
-function _validateIfOrgIsAuthed(orgName) {
+function _validateIfOrgIsAuthed(orgName: string) : Promise<Org> {
 
 	let meta = new ErrorMetadata('_validateIfOrgIsAuthed', { orgName });
 
@@ -574,13 +575,13 @@ function _validateIfOrgIsAuthed(orgName) {
 		//Will be true if this org does not yet exist in the database.
 		if(!org) {
 			
-			return cli.getOrgName().then(selectedOrgName => {
+			return cli.resolveOrgName(orgName).then(selectedOrgName => {
 				orgName = selectedOrgName;
 				return _processAuth(orgName);
 			});
 		}
 
-		return Bluebird.resolve(org);
+		return Promise.resolve(org);
 
 	}).catch(err => {
 		

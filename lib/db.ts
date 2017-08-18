@@ -6,6 +6,7 @@ const debug = require('debug')('svf:info db');
 const rollbar = require('./rollbar');
 
 import { appSettingsLocation } from './paths';
+import Org from './models/org';
 
 PouchDB.plugin(require('pouchdb-find'));
 
@@ -101,7 +102,7 @@ PouchDB.plugin({
 
 	},
 
-	getAllOrgs() {
+	getAllOrgs() : Promise<Org[]> {
 		return this.find({
 			selector: { type: 'auth' }
 		}).then(searchResult => {
