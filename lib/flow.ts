@@ -186,7 +186,7 @@ export function deployApp() {
 
 		let org;
 
-		return cli.orgSelection(null, false).then(orgChoice => {
+		return cli.orgSelection(undefined, false).then(orgChoice => {
 
 			org = orgChoice;
 			return cli.getPageSelectionByOrg(org, false);
@@ -485,7 +485,7 @@ function _startTunnel(org, page) {
 	m.start('Starting ngrok tunnel...')
 
 	let sf = new Salesforce(org);
-	let watcher = new Watcher(page);
+	let watcher = new Watcher(org, page);
 	let ngrok = new Ngrok(page.port);
 	let url;
 

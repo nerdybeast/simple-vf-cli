@@ -1,6 +1,6 @@
 {
   "name": "simple-vf-cli",
-  "version": "0.6.0-beta.6",
+  "version": "0.6.0-beta.7",
   "description": "A simple cli tool for building visualforce pages locally using cutting edge front-end build systems.",
   "author": "therealnerdybeast@gmail.com",
   "main": "index.js",
@@ -31,7 +31,8 @@
     "postinstall": "node ./dist/install",
     "gulp:scripts": "gulp scripts",
     "gulp:static": "gulp static",
-    "gulp:watch": "gulp watch"
+    "gulp:watch": "gulp watch",
+    "publish:beta": "npm publish --tag=beta"
   },
   "dependencies": {
     "archiver": "1.2.0",

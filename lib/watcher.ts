@@ -6,7 +6,7 @@ class Watcher {
 
 	private _watcher: any = null;
 
-	constructor(private page) {
+	constructor(private org, private page) {
 		debug(`Watcher page => %o`, page);
 	}
 
@@ -17,7 +17,7 @@ class Watcher {
 		let pluginName = this.page.pluginName === 'default' ? './built-in-plugins/default' : this.page.pluginName;
 		debug(`_resolvePageObject() => pluginName:`, pluginName);
 		
-		const plugin = await import(pluginName);
+		const { default: plugin } = await import(pluginName);
 		debug(`_resolvePageObject() => plugin:`, plugin);
 
 		this._watcher = watch(this.page.outputDir);
@@ -25,7 +25,7 @@ class Watcher {
 
 		this._watcher.on('change', (event, file) => {
 			debug(`File Change: ${file}`);
-			plugin.default.onFileChange(file);
+			plugin.onFileChange(this.org, this.page, file);
 		});
 
 		this._watcher.on('error', (err) => {
