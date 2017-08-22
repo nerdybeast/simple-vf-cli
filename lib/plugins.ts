@@ -1,12 +1,16 @@
+import * as fs from 'fs-extra';
 import { join } from 'path';
 import * as spawn from 'cross-spawn';
 import * as cli from './cli';
 import db from './db';
 import message from './message';
-import { projectRoot } from './paths';
+import { projectRoot, appSettingsLocation } from './paths';
 import { ModuleDetails } from './interfaces/module-details';
 
 const debug = require('debug')('svf:info plugin');
+let pluginDirectory = `${appSettingsLocation}/plugins`;
+
+debug('fs-extra import => %o', fs.pathExists);
 
 export async function determineBuildSystem() {
 
@@ -15,94 +19,128 @@ export async function determineBuildSystem() {
 	//Will be true if the user chose the "other" option when choosing which build system they are using.
 	if(pluginName === 'default') return Promise.resolve(pluginName);
 
-	//let plugin = await getPlugin(pluginDetails.name);
+	message.start(`Verifying plugin installation...`);
 
-	// let installedModules = await getInstalledModules();
+	await ensureAppSettingsPackageJsonExists();
 
-	// if(!hasModuleInstalled(pluginName, installedModules)) {
-	// 	await installPlugins(pluginName);
-	// 	installedModules = await getInstalledModules();
-	// 	await savePlugin(installedModules.find(x => x.name === pluginName));
-	// }
+	let pluginPromises = await Promise.all([ 
+		getPluginFromDb(pluginName),
+		npmSearch('@svf/plugin'),
+		getInstalledPlugins()
+	]);
+
+	let dbPlugin = pluginPromises[0].find(x => x.name === pluginName);
+	let remotePlugin = pluginPromises[1].find(x => x.name === pluginName);
+	let installedPlugin = pluginPromises[2].find(x => x.name === pluginName);
+
+	if(!pluginIsCurrent(dbPlugin, installedPlugin, remotePlugin)) {
+		
+		message.update('New version detected, updating now...');
+
+		await installPlugins(remotePlugin);
+		let installedModules = await getInstalledPlugins();
+		await savePlugin(installedModules.find(x => x.name === pluginName));
+
+		message.success('Plugin updated successfully');
+	}
+
+	message.success('Verification complete');
 
 	return Promise.resolve(pluginName);
 }
 
-function getPlugin(pluginName: string) : Promise<any> {
+export async function getPluginModule(name: string) {
 
+	let pluginLocation = name === 'default' ? './built-in-plugins/default' : `${pluginDirectory}/node_modules/${name}`;
+	debug(`getPluginModule() => pluginLocation:`, pluginLocation);
+
+	const { default: plugin } = await import(pluginLocation);
+	debug(`getPluginModule() => plugin:`, plugin);
+
+	return plugin;
+}
+
+function getPluginFromDb(pluginName: string) : Promise<any> {
 	return db.find({
 		selector: { type: 'plugin', name: pluginName }
 	}).then(searchResult => {
-		return searchResult.docs[0] || null;
+		debug('plugin search result => %o', searchResult);
+		return searchResult.docs || [];
 	});
-
 }
 
 function hasModuleInstalled(moduleName: string, installedModules: ModuleDetails[]) : boolean {
 	return installedModules.some(x => x.name === moduleName);
 }
 
-function installPlugins(plugins) {
+function installPlugins(plugins: ModuleDetails | ModuleDetails[]) {
 	
-	if(typeof plugins === 'string') {
+	if(!Array.isArray(plugins)) {
 		plugins = [plugins];
-	} 
+	}
+
+	let pluginNames = plugins.map(x => `${x.name}@${x.version}`);
 
 	return new Promise((resolve, reject) => {
 
-		message.start('Installing plugins...');
-
-		let child = spawn('npm', ['install', ...plugins, '--no-save'], {
-			cwd: projectRoot
+		let child = spawn('npm', ['install', ...pluginNames, '--save', '--save-exact'], {
+			cwd: pluginDirectory
 		});
 
-		child.on('data', (data) => debug(`data => ${data}`));
+		child.on('data', (data) => debug(`installPlugins data => ${data}`));
 
 		child.stdout.on('data', (data) => {
-
-			debug(`child.stdout => ${data}`); //ex: child.stdout => + star-wars-api@1.0.1
-
+			debug(`installPlugins child.stdout => ${data}`); //ex: child.stdout => + star-wars-api@1.0.1
 		});
 
-		child.stderr.on('data', (data) => debug(`child.stderr => ${data}`));
+		child.stderr.on('data', (data) => debug(`installPlugins child.stderr => ${data}`));
 
 		child.on('close', (code) => {
 			
 			//TODO: Error handling if code !== 0;
-			debug(`code => ${code}`);
+			debug(`installPlugins code => ${code}`);
 
-			message.success('Successfully installed required plugins');
 			return resolve();
 		}); 
 
 		child.on('error', (error) => {
-			message.fail(`An error has occured installing the required plugins: ${error.message}`);
 			return reject(error);
 		});
 
 	});
 }
 
-function getInstalledModules() : Promise<ModuleDetails[]> {
+function getInstalledPlugins() : Promise<ModuleDetails[]> {
 
 	return new Promise((resolve, reject) => {
 
-		message.start('Checking for installed plugins...');
-
-		let result: ModuleDetails[] = [];
+		let stdout = [];
 
 		let child = spawn('npm', ['list', '--json', '--depth=0'], {
-			cwd: projectRoot
+			cwd: pluginDirectory
 		});
 
 		child.on('data', (data) => debug(`data => ${data}`));
 		
 		child.stdout.on('data', (data) => {
+			debug(`getInstalledPlugins child.stdout => ${data}`);
+			stdout.push(data);
+		});
+
+		child.stderr.on('data', (data) => {
+			debug(`getInstalledPlugins child.stderr => ${data}`);
+			//return reject(new Error(data));
+		});
+
+		child.on('close', (code) => {
 			
-			debug(`child.stdout => ${data}`);
-			let dependencies = JSON.parse(data).dependencies;
+			//TODO: Error handling if code !== 0;
+			debug(`getInstalledPlugins code => ${code}`);
+
 			
-			result = Object.keys(dependencies).map(key => {
+			let dependencies = JSON.parse(stdout.join('')).dependencies || {};
+			
+			let result = Object.keys(dependencies).map(key => {
 				let dependency = dependencies[key];
 				return {
 					version: dependency.version,
@@ -110,26 +148,51 @@ function getInstalledModules() : Promise<ModuleDetails[]> {
 					resolved: dependency.resolved
 				};
 			});
+
+			return resolve(result);
+		}); 
+
+		child.on('error', (error) => {
+			return reject(error);
+		});
+	});
+}
+
+function npmSearch(criteria: string) : Promise<ModuleDetails[]> {
+
+	return new Promise((resolve, reject) => {
+
+		//let result: ModuleDetails[] = [];
+		let stdout = [];
+		
+		let child = spawn('npm', ['search', criteria, '--json']);
+
+		child.on('data', (data) => debug(`npmSearch data => ${data}`));
+		
+		child.stdout.on('data', (data) => {
+			
+			debug(`npmSearch child.stdout => ${data}`);
+			stdout.push(data);
 		});
 
 		child.stderr.on('data', (data) => {
-			debug(`child.stderr => ${data}`);
+			debug(`npmSearch child.stderr => ${data}`);
 			//return reject(new Error(data));
 		});
 
 		child.on('close', (code) => {
 			
 			//TODO: Error handling if code !== 0;
-			debug(`code => ${code}`);
+			debug(`npmSearch code => ${code}`);
 
-			message.success('Plugin search complete');
-			return resolve(result);
+			let finalStdout = stdout.join("");
+			return resolve(JSON.parse(finalStdout));
 		}); 
 
 		child.on('error', (error) => {
-			message.fail(`An error has occured installing the required plugins: ${error.message}`);
 			return reject(error);
 		});
+
 	});
 }
 
@@ -140,8 +203,34 @@ function savePlugin(moduleDetails: ModuleDetails) : Promise<any> {
 		type: 'plugin'
 	});
 
-	return db.put(doc).then(putResult => {
-		debug(`putResult on doc ${doc._id} => %o`, putResult);
-		return db.getWithDefault(doc._id);
-	});
+	return db.update(doc).then(updateResult => db.getWithDefault(doc._id));
+}
+
+/**
+ * Returns true if current plugin is synced up with the version on npm.
+ * @param dbPlugin 
+ * @param installedPlugin 
+ * @param remotePlugin 
+ */
+function pluginIsCurrent(dbPlugin: ModuleDetails, installedPlugin: ModuleDetails, remotePlugin: ModuleDetails) : boolean {
+	debug(`pluginIsCurrent() dbPlugin => %o`, dbPlugin);
+	debug(`pluginIsCurrent() installedPlugin => %o`, installedPlugin);
+	debug(`pluginIsCurrent() remotePlugin => %o`, remotePlugin);
+	return dbPlugin && installedPlugin && dbPlugin.version === remotePlugin.version && installedPlugin.version === remotePlugin.version;
+}
+
+async function ensureAppSettingsPackageJsonExists() : Promise<void> {
+
+	try {
+		
+		let packageJsonFile = `${pluginDirectory}/package.json`;
+		let exists = await fs.pathExists(packageJsonFile);
+
+		if(!exists) await fs.outputJson(packageJsonFile, { name: 'temp', version: '0.0.0' });
+		return Promise.resolve();
+
+	} catch (error) {
+		debug('An error occurred reading/creating the plugin package.json file => %o', error);
+		return Promise.reject(error);
+	}
 }

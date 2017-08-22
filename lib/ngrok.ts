@@ -12,7 +12,7 @@ class Ngrok {
 		this.port = port;
 	}
 
-	connect() : Promise<string> {
+	connect() : Promise<any> {
 
 		return new Promise((resolve, reject) => {
 			

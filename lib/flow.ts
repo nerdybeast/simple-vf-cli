@@ -4,7 +4,7 @@ const cryptoJs = require('crypto-js');
 const _ = require('lodash');
 const debug = require('debug')('svf:info flow');
 
-import { props } from 'bluebird';
+import * as Bluebird from 'bluebird';
 import db from './db';
 import { default as rollbar } from './rollbar';
 import ErrorMetadata from './models/error-metadata';
@@ -15,7 +15,7 @@ import Salesforce from './salesforce';
 import Ngrok from './ngrok';
 import Watcher from './watcher';
 import deploy from './deploy';
-import { determineBuildSystem } from './plugins';
+import { determineBuildSystem, getPluginModule } from './plugins';
 
 export function auth(orgName, allowOtherOption) {
 
@@ -209,19 +209,18 @@ export function deployApp() {
 	}
 }
 
-export function list() {
+export async function list() {
 
-	props({
-		orgs: db.getAllOrgs(),
-		pages: db.getAllPages()
-	}).then(hash => {
+	try {
+	
+		let [orgs, pages] = await Promise.all([db.getAllOrgs(), db.getAllPages()]);
 
-		_.sortBy(hash.orgs, ['name']).forEach(org => {
-
+		_.sortBy(orgs, ['name']).forEach(org => {
+			
 			let username = chalk.yellow(`(${org.username})`);
-			console.log(`${org.name} ${username}`);
+			console.log(`Org: ${org.name} ${username}`);
 
-			let pages = hash.pages.filter(page => {
+			pages = pages.filter(page => {
 				return page.belongsTo === org._id;
 			});
 
@@ -240,15 +239,17 @@ export function list() {
 				if(page._id) {
 					let pageName = chalk.cyan(_.padEnd(page.name, padding));
 					let outputDir = chalk.cyan(` - ${page.outputDir}`);
-					console.log(`  - ${pageName} ${outputDir}`);
+					console.log(`  > ${pageName} ${outputDir}`);
 				} else {
-					console.log(`  - ${page.name}`);
+					console.log(`  > ${page.name}`);
 				}
 
 			});
 		});
 
-	});
+	} catch (error) {
+		return Promise.reject(error);
+	}
 }
 
 /**
@@ -330,7 +331,7 @@ function _processAuth(orgName) {
 
 		m.start('Authenticating into org...');
 
-		return props({
+		return Bluebird.props({
 			loginResult: conn.login(credentials.username, password),
 			encryptionKey: db.getEncryptionKey()
 		});
@@ -412,13 +413,9 @@ async function _resolvePageObject(page, org) {
 
 	if(page._id) return Promise.resolve(page);
 
-	let pluginName = page.pluginName === 'default' ? './built-in-plugins/default' : page.pluginName;
-	debug(`_resolvePageObject() => pluginName:`, pluginName);
+	const plugin = await getPluginModule(page.pluginName);
 
-	const plugin = await import(pluginName);
-	debug(`_resolvePageObject() => plugin:`, plugin);
-
-	return plugin.default.pageConfig().then(pageConfig => {
+	return plugin.pageConfig().then(pageConfig => {
 
 		debug(`_resolvePageObject() => getPageDetails pageConfig:`, pageConfig);
 
@@ -477,7 +474,7 @@ function _deployNewPage(org, page) {
 
 }
 
-function _startTunnel(org, page) {
+async function _startTunnel(org, page) {
 
 	debug(`_startTunnel() => org:`, org);
 	debug(`_startTunnel() => page:`, page);
@@ -487,56 +484,42 @@ function _startTunnel(org, page) {
 	let sf = new Salesforce(org);
 	let watcher = new Watcher(org, page);
 	let ngrok = new Ngrok(page.port);
-	let url;
+	
+	try {
 
-	return props({
-		url: ngrok.connect(),
-		customSettings: sf.processCustomSettings()
-	}).then(hash => {
+		let [url, customSettings] = await Promise.all([ngrok.connect(), sf.processCustomSettings()]);
 		
-		url = hash.url;
-
 		m.success(`Tunnel started at: ${chalk.cyan(url)}`);
-
+	
 		//Re-query the org in case the processCustomSettings() method updated the org credentials.
-		return db.getWithDefault(org._id);
-
-	}).then(fetchedOrg => {
-
-		org = fetchedOrg;
-		return _togglePageSettings(org, page, url, true);
-
-	}).then(() => {
-
+		org = await db.getWithDefault(org._id);
+	
+		await _togglePageSettings(org, page, url, true);
+	
 		watcher.start();
-		return cli.manageTunnel();
-
-	}).then(answer => {
-		
-		answer = answer || '';
-
-		let promiseHash = {
-			deployPromise: null,
-			disconnectPromise: ngrok.disconnectAsync(),
-			settingsPromise: _togglePageSettings(org, page, null, false)
-		};
-
+		let answer = (await cli.manageTunnel()) || '';
+	
+		let disconnectPromises = [
+			ngrok.disconnectAsync(),
+			_togglePageSettings(org, page, null, false)
+		];
+	
 		if(answer.toLowerCase() === 'deploy') {
-			promiseHash.deployPromise = deploy(org, page);
+			disconnectPromises.push(deploy(org, page));
 		}
-
+	
 		watcher.stop();
-		return props(promiseHash);
+		await Promise.all(disconnectPromises);
 
-	}).catch(err => {
-
+	} catch (error) {
+		
 		ngrok.disconnect();
 		watcher.stop();
 
 		m.fail('Failed to establish tunnel');
-		
-		return Promise.reject(err);
-	});
+
+		return Promise.reject(error);
+	}
 }
 
 function _togglePageSettings(org, page, url, developmentMode) {

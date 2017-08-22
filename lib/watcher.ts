@@ -2,6 +2,8 @@ const watch = require('node-watch');
 const chalk = require('chalk');
 const debug = require('debug')('svf:info watcher');
 
+import { getPluginModule } from './plugins';
+
 class Watcher {
 
 	private _watcher: any = null;
@@ -14,11 +16,7 @@ class Watcher {
 		
 		if(this._watcher !== null) return;
 
-		let pluginName = this.page.pluginName === 'default' ? './built-in-plugins/default' : this.page.pluginName;
-		debug(`_resolvePageObject() => pluginName:`, pluginName);
-		
-		const { default: plugin } = await import(pluginName);
-		debug(`_resolvePageObject() => plugin:`, plugin);
+		const plugin = await getPluginModule(this.page.pluginName);
 
 		this._watcher = watch(this.page.outputDir);
 		debug(`Watcher started for path: ${chalk.cyan(this.page.outputDir)}`);
