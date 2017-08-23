@@ -6,6 +6,7 @@ import db from './db';
 import message from './message';
 import { projectRoot, appSettingsLocation } from './paths';
 import { ModuleDetails } from './interfaces/module-details';
+import { Plugin } from './interfaces/plugin';
 
 const debug = require('debug')('svf:info plugin');
 let pluginDirectory = `${appSettingsLocation}/plugins`;
@@ -49,7 +50,7 @@ export async function determineBuildSystem() {
 	return Promise.resolve(pluginName);
 }
 
-export async function getPluginModule(name: string) {
+export async function getPluginModule(name: string) : Promise<Plugin> {
 
 	let pluginLocation = name === 'default' ? './built-in-plugins/default' : `${pluginDirectory}/node_modules/${name}`;
 	debug(`getPluginModule() => pluginLocation:`, pluginLocation);
@@ -110,51 +111,17 @@ function installPlugins(plugins: ModuleDetails | ModuleDetails[]) {
 	});
 }
 
-function getInstalledPlugins() : Promise<ModuleDetails[]> {
+async function getInstalledPlugins() : Promise<ModuleDetails[]> {
 
-	return new Promise((resolve, reject) => {
+	let packageJson = await fs.readJson(`${pluginDirectory}/package.json`);
 
-		let stdout = [];
-
-		let child = spawn('npm', ['list', '--json', '--depth=0'], {
-			cwd: pluginDirectory
-		});
-
-		child.on('data', (data) => debug(`data => ${data}`));
-		
-		child.stdout.on('data', (data) => {
-			debug(`getInstalledPlugins child.stdout => ${data}`);
-			stdout.push(data);
-		});
-
-		child.stderr.on('data', (data) => {
-			debug(`getInstalledPlugins child.stderr => ${data}`);
-			//return reject(new Error(data));
-		});
-
-		child.on('close', (code) => {
-			
-			//TODO: Error handling if code !== 0;
-			debug(`getInstalledPlugins code => ${code}`);
-
-			
-			let dependencies = JSON.parse(stdout.join('')).dependencies || {};
-			
-			let result = Object.keys(dependencies).map(key => {
-				let dependency = dependencies[key];
-				return {
-					version: dependency.version,
-					name: key,
-					resolved: dependency.resolved
-				};
-			});
-
-			return resolve(result);
-		}); 
-
-		child.on('error', (error) => {
-			return reject(error);
-		});
+	return Object.keys(packageJson.dependencies).map(dependencyName => {
+		let version = packageJson.dependencies[dependencyName];
+		return {
+			version,
+			name: dependencyName,
+			resolved: null
+		};
 	});
 }
 
@@ -162,7 +129,6 @@ function npmSearch(criteria: string) : Promise<ModuleDetails[]> {
 
 	return new Promise((resolve, reject) => {
 
-		//let result: ModuleDetails[] = [];
 		let stdout = [];
 		
 		let child = spawn('npm', ['search', criteria, '--json']);
@@ -177,7 +143,6 @@ function npmSearch(criteria: string) : Promise<ModuleDetails[]> {
 
 		child.stderr.on('data', (data) => {
 			debug(`npmSearch child.stderr => ${data}`);
-			//return reject(new Error(data));
 		});
 
 		child.on('close', (code) => {

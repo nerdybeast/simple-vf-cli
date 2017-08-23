@@ -12,6 +12,7 @@ import m from './message';
 import Org from './models/org';
 import StaticResourceOptions from './models/static-resource-options';
 import * as templates from './templates';
+import { getPluginModule } from './plugins'
 
 class Salesforce {
 	
@@ -102,18 +103,20 @@ class Salesforce {
 				
 				return this.createSobject('StaticResource', staticResourceOptions, true);
 
-			}).then(staticResource => {
+			}).then(async staticResource => {
 
 				debug(`staticResource => %o`, staticResource);
 
 				createdResources.push({ order: 2, type: 'StaticResource', id: staticResource.id, isTooling: true });
 
-				let options = templates.visualforcePage(page.name);
+				let plugin = await getPluginModule(page.pluginName);
+				let html = await plugin.getHtmlMarkup(page);
+				let markup = templates.apexPageWrapper(page, html);
 
 				return this.createSobject('ApexPage', {
-					Name: options.name,
-					MasterLabel: options.name,
-					Markup: options.body
+					Name: page.name,
+					MasterLabel: page.name,
+					Markup: markup
 				});
 
 			}).then(apexPage => {

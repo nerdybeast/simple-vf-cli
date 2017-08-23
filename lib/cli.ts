@@ -8,6 +8,7 @@ const debug = require('debug')('svf:info cli');
 import db from './db';
 import m from './message';
 import Org from './models/org';
+import { PageConfig } from './interfaces/page-config';
 
 function validateInput(userInput: string, errorMessage: string = 'Please enter a value') : boolean|string {
 	userInput = (userInput || '').trim();
@@ -317,27 +318,13 @@ export function resolvePageName(pageName: string) : Promise<string> {
 /**
  * Retrieves the page config details like name, port, output directory. This method is used by the default plugin.
  */
-export function getPageDetails(pageName: string) : Promise<any> {
+export async function getPageDetails(pageName: string) : Promise<PageConfig> {
 	
-	let port;
+	let name = await _resolvePageName(pageName);
+	let port = (await _base([questions.port()])).port;
+	let outputDirectory = await _resolveOutputDirectory();
 
-	return _resolvePageName(pageName).then(resolvedPageName => {
-
-		pageName = resolvedPageName;
-
-		return _base([questions.port()]);
-
-	}).then(answers => {
-
-		port = answers.port;
-		return _resolveOutputDirectory();
-
-	}).then(outputDir => {
-
-		return Promise.resolve({ pageName, port, outputDir });
-
-	});
-	
+	return { name, port, outputDirectory };
 }
 
 export function manageTunnel() : Promise<string> {
