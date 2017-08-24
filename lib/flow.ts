@@ -17,135 +17,61 @@ import Watcher from './watcher';
 import deploy from './deploy';
 import { determineBuildSystem, getPluginModule } from './plugins';
 
-export function auth(orgName, allowOtherOption) {
-
-	let meta = new ErrorMetadata('auth', {
-		orgName,
+export async function auth() : Promise<Org> {
+	
+	try {
 		
-		//Calling this method from the command line passes the entire commander instance as the 2nd argument
-		//into this function. If the second argument is not an object, that means we passed something in.
-		allowOtherOption: typeof allowOtherOption !== 'object' ? allowOtherOption : undefined
-	});
+		let orgName = await _resolveOrgName(undefined, 'Choose which org to authenticate with:', true);
+		return await _processAuth(orgName);
 
-	try {
-
-		debug(`auth() => orgName:${orgName}, allowOtherOption:${allowOtherOption}`);
-
-		allowOtherOption = (typeof allowOtherOption === 'boolean') ? allowOtherOption : true;
-
-		// return _resolveOrgName(orgName, 'Choose which org to authenticate with:', allowOtherOption).then(resolvedOrgName => {
-			
-		// 	//Will be "truthy" if the user supplied an org name with the auth command (ex: `svf auth myOrg`)
-		// 	//or they chose an existing org name from the list of already authed orgs.
-		// 	if(resolvedOrgName) {
-		// 		return Promise.resolve(resolvedOrgName);
-		// 	}
-
-		// 	//Will prompt the user to enter the new org name. Reaching this point means the user did not enter
-		// 	//an org name with the auth command and they chose the "other" option when selecting from the list
-		// 	//of already authed orgs.
-		// 	return cli.getOrgName();
-
-		// })
-		return cli.resolveOrgName(orgName).then(selectedOrgName => {
-
-			//Will execute a login request for the current org and save it to the database.
-			return _processAuth(selectedOrgName);
-
-		}).catch(err => {
-			rollbar.exception(err, meta, () => m.catchError(err));
-		});
-
-	} catch(e) {
-		rollbar.exception(e, meta, () => m.catchError(e));
+	} catch (error) {
+		rollbar.exception(error, new ErrorMetadata('auth'), () => m.catchError(error));
 	}
+
 }
 
-export function newPage(pageName, org) {
+export async function newPage(org?: Org) {
 
-	let meta = new ErrorMetadata('newPage', { pageName, org });
+	let meta = new ErrorMetadata('newPage', { org });
 
 	try {
 
-		debug(`newPage() => pageName: %o`, pageName);
-		debug(`newPage() => org: %o`, org);
+		let orgName = (org && "_id" in org) ? org.name : undefined;
+		let chosenOrgName = await _resolveOrgName(orgName, 'Choose destination org for the new Visualforce page:', true);
+		
+		org = await _validateIfOrgIsAuthed(chosenOrgName);
 
-		let orgName = (org && "_id" in org) ? org.name : null;
+		let pluginName = await determineBuildSystem();
+		let page = await _resolvePageObject(pluginName, org);
 
-		return _resolveOrgName(orgName, 'Choose destination org for the new Visualforce page:', true).then(resolvedOrgName => {
+		return await _deployNewPage(org, page);
 
-			return _validateIfOrgIsAuthed(resolvedOrgName);
-
-		}).then(resolvedOrg => {
-
-			org = resolvedOrg;
-			return _resolvePageName(pageName);
-
-		}).then(async resolvedPageName => {
-
-			let pluginName = await determineBuildSystem();
-
-			pageName = resolvedPageName;
-			return _resolveVisualforcePage(pageName, org, pluginName);
-
-		}).then(resolvedPage => {
-
-			return _deployNewPage(org, resolvedPage);
-
-		}).catch(err => {
-			rollbar.exception(err, meta, () => m.catchError(err));
-		});
-	
-	} catch(e) {
-		rollbar.exception(e, meta, () => m.catchError(e));
+	} catch(error) {
+		rollbar.exception(error, meta, () => m.catchError(error));
 	}
+
 }
 
-export function serve(orgName) {
+export async function serve() : Promise<void> {
 	
-	let meta = new ErrorMetadata('serve', { orgName });
+	let meta = new ErrorMetadata('serve');
 
 	try {
 
-		debug(`serve() => orgName:`, orgName);
+		let orgName = await _resolveOrgName(undefined, undefined, true);
+		let org = await _validateIfOrgIsAuthed(orgName);
+		let page = await cli.getPageSelectionByOrg(org, true);
 
-		//Will hold the org object for the given org name.
-		let org;
+		if(!page) {
+			page = await newPage(org);
+		}
 
-		//Will ask the user to enter an org name if they did not give one with the serve command.
-		return _resolveOrgName(orgName, undefined, true).then(resolvedOrgName => {
-			
-			//Will make sure that the org is authed.
-			return _validateIfOrgIsAuthed(resolvedOrgName);
+		await _startTunnel(org, page);
 
-		}).then(resolvedOrg => {
-
-			org = resolvedOrg;
-			return cli.getPageSelectionByOrg(org, true);
-
-		}).then(pageSelection => {
-
-			if(!pageSelection) {
-				return newPage(null, org);
-			}
-
-			return Promise.resolve(pageSelection);
-
-		}).then(resolvedPage => {
-
-			return _resolvePageObject(resolvedPage, org);
-
-		}).then(page => {
-
-			return _startTunnel(org, page);
-
-		}).catch(err => {
-			rollbar.exception(err, meta, () => m.catchError(err));
-		});
-
-	} catch(e) {
-		rollbar.exception(e, meta, () => m.catchError(e));
+	} catch(error) {
+		rollbar.exception(error, meta, () => m.catchError(error));
 	}
+
 }
 
 export function deleteDatabase() {
@@ -254,23 +180,19 @@ export async function list() {
 
 /**
  * @description Prompts the user to enter an org name if one was not supplied.
- * @returns string
  */
-function _resolveOrgName(orgName: string, userMessage?: string, allowOther?: boolean) : Promise<string> {
+async function _resolveOrgName(orgName: string, userMessage?: string, allowOther?: boolean) : Promise<string> {
 	
 	debug(`_resolveOrgName() => orgName:`, orgName);
 	debug(`_resolveOrgName() => allowOther:`, allowOther);
 
-	//Will be true if the user did supply the org name with the command.
-	if(orgName) { return Promise.resolve(orgName); }
-	
-	//Prompts the user to select an authed org or "other".
-	return cli.orgSelection(userMessage, allowOther).then(selectedOrg => {
-		
-		//NOTE: "selectedOrg" will be null if the user chose the "other" option.
-		return Promise.resolve(selectedOrg !== null ? selectedOrg.name : null);
+	if(orgName) return orgName;
 
-	});
+	let selectedOrg = await cli.orgSelection(userMessage, allowOther);
+
+	if(selectedOrg) return selectedOrg.name;
+
+	return await cli.resolveOrgName();
 }
 
 /**
@@ -297,71 +219,52 @@ function _resolvePageName(pageName) {
  * @description Logs the user into Salesforce and saves their auth credentials into the database.
  * @returns An auth object.
  */
-function _processAuth(orgName) {
+async function _processAuth(orgName: string) : Promise<Org> {
 
 	debug(`_processAuth() => orgName:`, orgName);
 
-	//Will hold the jsforce connection details.
-	let conn;
+	try {
 
-	//Will hold the auth object for the newly authed org.
-	let org = new Org();
-
-	//Will hold the userInfo about the current jsforce connection.
-	let userInfo;
-
-	//Will hold the user's username & password.
-	let credentials;
-
-	return db.getWithDefault(orgName).then(doc => {
-
-		//Prompt the user for their username & password;
-		return cli.getOrgCredentials(doc);
-
-	}).then(answers => {
-
-		credentials = answers;
-		conn = new jsforce.Connection({ loginUrl: credentials.orgType });
-
+		let savedOrg = await db.getWithDefault(orgName);
+		let credentials = await cli.getOrgCredentials(savedOrg);
+		let conn = new jsforce.Connection({ loginUrl: credentials.orgType });
+	
 		let password = credentials.password;
-		
+	
 		if(credentials.securityToken) {
 			password += credentials.securityToken;
 		}
-
+	
 		m.start('Authenticating into org...');
-
-		return Bluebird.props({
-			loginResult: conn.login(credentials.username, password),
-			encryptionKey: db.getEncryptionKey()
-		});
-
-	}).then(hash => {
-
-		debug(`login() result => %o`, hash.loginResult);
+	
+		let [loginResult, encryptionKey] = await Promise.all([
+			conn.login(credentials.username, password),
+			db.getEncryptionKey()
+		]);
+	
+		debug(`jsforce.login() loginResult => %o`, loginResult);
 		m.success(`Successfully authenticated: ${chalk.cyan(conn.instanceUrl)}`);
-
+	
+		let org = new Org();
+		org._id = orgName;
+		org.name = orgName;
 		org.loginUrl = credentials.orgType;
 		org.instanceUrl = conn.instanceUrl;
 		org.username = credentials.username;
-		org.password = cryptoJs.AES.encrypt(credentials.password, hash.encryptionKey).toString();
+		org.password = cryptoJs.AES.encrypt(credentials.password, encryptionKey).toString();
 		org.securityToken = credentials.securityToken;
-		org.userId = hash.loginResult.id;
-		org.orgId = hash.loginResult.organizationId;
+		org.userId = loginResult.id;
+		org.orgId = loginResult.organizationId;
 		org.accessToken = conn.accessToken;
-		org.name = orgName;
-		org._id = orgName;
+	
+		org = await db.update(org);
 
-		return db.update(org);
+		return org;
 
-	}).then(() => {
-
-		return Promise.resolve(org);
-
-	}).catch(err => {
+	} catch (error) {
 		m.fail(`Authentication to ${chalk.cyan(orgName)} failed.`);
-		return Promise.reject(err);
-	});
+		throw error;
+	}
 
 }
 
@@ -406,14 +309,12 @@ function _resolveVisualforcePage(pageName, org, pluginName) {
 	});
 }
 
-async function _resolvePageObject(page, org) {
+async function _resolvePageObject(pluginName, org) {
 	
-	debug(`_resolvePageObject() => page:`, page);
+	debug(`_resolvePageObject() => pluginName:`, pluginName);
 	debug(`_resolvePageObject() => org:`, org);
 
-	if(page._id) return Promise.resolve(page);
-
-	const plugin = await getPluginModule(page.pluginName);
+	const plugin = await getPluginModule(pluginName);
 
 	return plugin.pageConfig().then(pageConfig => {
 
@@ -427,7 +328,7 @@ async function _resolvePageObject(page, org) {
 			port: Number(pageConfig.port),
 			outputDir: pageConfig.outputDirectory,
 			staticResourceId: null,
-			pluginName: page.pluginName
+			pluginName
 		});
 
 	}).then(postResult => {

@@ -191,7 +191,7 @@ export function askBasicInput(options: any) : Promise<any> {
 	return _base([Question.basicInput(options)]);
 }
 
-export function getOrgCredentials(org?: Org) : Promise<string[]> {
+export function getOrgCredentials(org?: Org) : Promise<any> {
 	
 	debug(`getOrgCredentials() => org: %o`, org);
 
