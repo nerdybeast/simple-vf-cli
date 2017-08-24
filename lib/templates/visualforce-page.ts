@@ -1,29 +1,37 @@
 import controllerTemplate from './controller';
 
-export default function(pageName: string) : any {
+const debug = require('debug')('svf:info templates/visualforce-page');
+
+export function apexPageWrapper(page, html: string) {
 	
-	let controller = controllerTemplate(pageName);
+	let controller = controllerTemplate(page.name);
 
-	return { name: pageName, body: `
-<apex:page controller="${controller.name}" showHeader="false" standardStylesheets="false" sidebar="false" applyHtmlTag="false" applyBodyTag="false" docType="html-5.0">
-	<html>
-		<head>
-			
-			<title>${pageName}</title>
-			
-			<meta name="viewport" content="width=device-width, initial-scale=1" />
+	return `
+		<apex:page controller="${controller.name}" showHeader="false" standardStylesheets="false" sidebar="false" applyHtmlTag="false" applyBodyTag="false" docType="html-5.0">
+			${html}
+		</apex:page>
+	`;
+}
 
-			<!--UNCOMMENT THIS LINE AFTER UPDATING THE PATH TO YOUR STATIC RESOURCE STYLESHEET-->
-			<!--<link href="{!URLFOR(IF(IsUnderDevelopment, SimpleVfPageConfig.TunnelUrl__c, $Resource.${pageName})) + '/path/to/your/stylesheet.css'}" rel="stylesheet" />-->
-			
-		</head>
-		<body>
-			
-			<!--UNCOMMENT THIS LINE AFTER UPDATING THE PATH TO YOUR STATIC RESOURCE SCRIPT-->
-			<!--<script src="{!URLFOR(IF(IsUnderDevelopment, SimpleVfPageConfig.TunnelUrl__c, $Resource.${pageName})) + '/path/to/your/script.js'}"></script>-->
+export function defaultHtml(page) : Promise<string> {
+	return Promise.resolve(`
+		<html>
+			<head>
+				
+				<title>${page.name}</title>
+				
+				<meta name="viewport" content="width=device-width, initial-scale=1" />
 
-		</body>
-	</html>
-</apex:page>
-`};
+				<!--UNCOMMENT THIS LINE AFTER UPDATING THE PATH TO YOUR STATIC RESOURCE STYLESHEET-->
+				<!--<link href="{!URLFOR(IF(IsUnderDevelopment, SimpleVfPageConfig.TunnelUrl__c, $Resource.${page.name})) + '/path/to/your/stylesheet.css'}" rel="stylesheet" />-->
+				
+			</head>
+			<body>
+				
+				<!--UNCOMMENT THIS LINE AFTER UPDATING THE PATH TO YOUR STATIC RESOURCE SCRIPT-->
+				<!--<script src="{!URLFOR(IF(IsUnderDevelopment, SimpleVfPageConfig.TunnelUrl__c, $Resource.${page.name})) + '/path/to/your/script.js'}"></script>-->
+
+			</body>
+		</html>
+	`);
 }

@@ -1,27 +1,29 @@
-'use strict';
-
 const watch = require('node-watch');
 const chalk = require('chalk');
 const debug = require('debug')('svf:info watcher');
 
+import { getPluginModule } from './plugins';
+
 class Watcher {
 
-	private _filePath: string;
 	private _watcher: any = null;
 
-	constructor(filePath: string) {
-		this._filePath = filePath;
+	constructor(private org, private page) {
+		debug(`Watcher page => %o`, page);
 	}
 
-	start() : void {
+	async start() : Promise<void> {
 		
 		if(this._watcher !== null) return;
 
-		this._watcher = watch(this._filePath);
-		debug(`Watcher started for path: ${chalk.cyan(this._filePath)}`);
+		const plugin = await getPluginModule(this.page.pluginName);
+
+		this._watcher = watch(this.page.outputDir);
+		debug(`Watcher started for path: ${chalk.cyan(this.page.outputDir)}`);
 
 		this._watcher.on('change', (event, file) => {
 			debug(`File Change: ${file}`);
+			plugin.onFileChange(this.org, this.page, file);
 		});
 
 		this._watcher.on('error', (err) => {

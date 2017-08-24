@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const jsforce = require('jsforce');
-const Promise = require('bluebird');
+const Bluebird = require('bluebird');
 const cryptoJS = require('crypto-js');
 const _ = require('lodash');
 const debug = require('debug')('svf:info salesforce');
@@ -12,6 +12,7 @@ import m from './message';
 import Org from './models/org';
 import StaticResourceOptions from './models/static-resource-options';
 import * as templates from './templates';
+import { getPluginModule } from './plugins'
 
 class Salesforce {
 	
@@ -35,7 +36,7 @@ class Salesforce {
 		
 		return this.validateAuthentication().then(() => {
 
-			return Promise.props({
+			return Bluebird.props({
 				pageConfig: this.conn.query(`Select Id, Name, DevelopmentMode__c, TunnelUrl__c From Simple_VF_Pages__c Where Name = '${pageName}'`),
 				userConfig: this.conn.query(`Select Id, Name, SetupOwnerId, DevelopmentMode__c From Simple_VF_Users__c Where SetupOwnerId = '${this.org.userId}'`)
 			});
@@ -58,13 +59,15 @@ class Salesforce {
 				userConfigPromise = this.conn.sobject('Simple_VF_Users__c').create({ SetupOwnerId: this.org.userId, DevelopmentMode__c: developmentMode });
 			}
 
-			return Promise.props({ pageConfigPromise, userConfigPromise });
+			return Bluebird.props({ pageConfigPromise, userConfigPromise });
 
 		});
 
 	}
 
 	deployNewPage(page) {
+
+		debug(`deployNewPage() page => %o`, page);
 
 		return this.validateAuthentication().then(() => {
 
@@ -100,18 +103,20 @@ class Salesforce {
 				
 				return this.createSobject('StaticResource', staticResourceOptions, true);
 
-			}).then(staticResource => {
+			}).then(async staticResource => {
 
 				debug(`staticResource => %o`, staticResource);
 
 				createdResources.push({ order: 2, type: 'StaticResource', id: staticResource.id, isTooling: true });
 
-				let options = templates.visualforcePage(page.name);
+				let plugin = await getPluginModule(page.pluginName);
+				let html = await plugin.getHtmlMarkup(page);
+				let markup = templates.apexPageWrapper(page, html);
 
 				return this.createSobject('ApexPage', {
-					Name: options.name,
-					MasterLabel: options.name,
-					Markup: options.body
+					Name: page.name,
+					MasterLabel: page.name,
+					Markup: markup
 				});
 
 			}).then(apexPage => {
@@ -141,7 +146,7 @@ class Salesforce {
 
 				let cleanupMap = _.sortBy(createdResources, ['order']);
 
-				return Promise.each(cleanupMap, (resource) => {
+				return Bluebird.each(cleanupMap, (resource) => {
 					
 					debug(`deleting ${resource.type} => ${resource.id}`);
 
@@ -163,7 +168,7 @@ class Salesforce {
 		
 		return this.validateAuthentication().then(() => {
 			
-			return Promise.props({
+			return Bluebird.props({
 				hasSimpleVfPages: this.hasSobject(templates.simpleVfPages.fullName),
 				hasSimpleVfUsers: this.hasSobject(templates.simpleVfUsers.fullName)
 			});
@@ -189,10 +194,8 @@ class Salesforce {
 		});
 	}
 
-	hasSobject(sobjectName) {
-		return this.conn.sobject(sobjectName).describe()
-			.then(() => Promise.resolve(true))
-			.catch(() => Promise.resolve(false));
+	hasSobject(sobjectName: string) : Promise<boolean> {
+		return this.conn.sobject(sobjectName).describe().then(() => true).catch(() => false);
 	}
 
 	validateAuthentication() {
@@ -207,7 +210,7 @@ class Salesforce {
 
 			debug(`validateAuthentication() this.org.securityToken => ${this.org.securityToken}`);
 
-			return Promise.props({
+			return Bluebird.props({
 				encryptionKey: db.getEncryptionKey(),
 				securityToken: typeof this.org.securityToken !== 'string' ? cli.getSecurityToken('No security token set for this org, you may enter that now') : this.org.securityToken
 			}).then(hash => {
@@ -215,7 +218,7 @@ class Salesforce {
 				securityToken = hash.securityToken;
 				let password = cryptoJS.AES.decrypt(this.org.password, hash.encryptionKey).toString(cryptoJS.enc.Utf8) + securityToken;
 
-				return Promise.props({
+				return Bluebird.props({
 					org: db.getWithDefault(this.org._id),
 					userInfo: this.conn.login(this.org.username, password)
 				});
@@ -326,6 +329,18 @@ class Salesforce {
 
 			return Promise.reject(err);
 		});
+	}
+
+	async starQuery(sobject: string, whereClause?: string) : Promise<any> {
+		let fieldNames = await this.getSobjectFieldNames(sobject);
+		let query = `Select ${fieldNames.join(',')} From ${sobject}`;
+		if(whereClause) query += whereClause;
+		return this.conn.query(query);
+	}
+
+	async getSobjectFieldNames(sobject: string) : Promise<string[]> {
+		let describeResult = await this.conn.sobject(sobject).describe();
+		return describeResult.fields.map(x => x.name);
 	}
 }
 

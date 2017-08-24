@@ -27,11 +27,16 @@ class Message {
 		this._message.start();
 	}
 
+	update(msg: string) : void {
+		this._message.text = msg;
+	}
+
 	stop() : void {
 		this._message.stop();
 	}
 
 	success(msg: string) : void {
+		if(!this._isAlive) return;
 		this._message.succeed(msg);
 		this._kill();
 	}

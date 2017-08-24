@@ -12,39 +12,39 @@ commander
 	.version(packageJson.version);
 
 commander
-	.command('auth [org]')
+	.command('auth')
 	.alias('a')
-	.description('Adds authentication for an org.')
+	.description('Adds authentication for a Salesforce org.')
 	.action(flow.auth);
 
 commander
-	.command('new [name]')
+	.command('new')
 	.alias('n')
-	.description('Creates a new Visualforce page for the given name and deploys that page to Salesforce.')
+	.description('Creates a new Visualforce page and deploys it to Salesforce.')
 	.action(flow.newPage);
 
 commander
-	.command('serve [org]')
+	.command('serve')
 	.alias('s')
-	.description('Creates a public tunnel to a local host resource.')
+	.description('Serves up an app running locally directly in a Visualforce page.')
 	.action(flow.serve);
 
 commander
 	.command('deploy')
 	.alias('d')
-	.description('Deploys an app as a static resource.')
+	.description('Deploys an app to Salesforce as a Static Resource.')
 	.action(flow.deployApp);
 
 commander
 	.command('list')
 	.alias('ls')
-	.description('Lists all org and page entries.')
+	.description('Lists all authenticated Salesforce orgs and created Visualforce pages.')
 	.action(flow.list);
 
 commander
 	.command('clear')
 	.alias('c')
-	.description('Clears all org and page entries.')
+	.description('Clears all authenticated orgs and Visualforce pages locally (does not affect Salesforce).')
 	.action(flow.deleteDatabase);
 
 commander.parse(process.argv);
@@ -52,5 +52,3 @@ commander.parse(process.argv);
 if(!commander.args.length) {
 	commander.help();
 }
-
-
