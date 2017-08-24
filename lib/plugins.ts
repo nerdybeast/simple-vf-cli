@@ -31,8 +31,13 @@ export async function determineBuildSystem() {
 	]);
 
 	let dbPlugin = pluginPromises[0].find(x => x.name === pluginName);
+	debug(`determineBuildSystem() dbPlugin => %o`, dbPlugin);
+
 	let remotePlugin = pluginPromises[1].find(x => x.name === pluginName);
+	debug(`determineBuildSystem() remotePlugin => %o`, remotePlugin);
+
 	let installedPlugin = pluginPromises[2].find(x => x.name === pluginName);
+	debug(`determineBuildSystem() installedPlugin => %o`, installedPlugin);
 
 	if(!pluginIsCurrent(dbPlugin, installedPlugin, remotePlugin)) {
 		
@@ -114,6 +119,9 @@ function installPlugins(plugins: ModuleDetails | ModuleDetails[]) {
 async function getInstalledPlugins() : Promise<ModuleDetails[]> {
 
 	let packageJson = await fs.readJson(`${pluginDirectory}/package.json`);
+	debug(`getInstalledPlugins() packageJson => %o`, packageJson);
+
+	packageJson.dependencies = packageJson.dependencies || {};
 
 	return Object.keys(packageJson.dependencies).map(dependencyName => {
 		let version = packageJson.dependencies[dependencyName];
