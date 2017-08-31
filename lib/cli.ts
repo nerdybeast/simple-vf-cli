@@ -1,13 +1,13 @@
 const inquirer = require('inquirer');
 const _ = require('lodash');
 const chalk = require('chalk');
-const Bluebird = require('bluebird');
-const fs = Bluebird.promisifyAll(require('fs-extra'));
+const fs = require('fs-extra');
 const debug = require('debug')('svf:info cli');
 
 import db from './db';
 import m from './message';
 import Org from './models/org';
+import { Page } from './models/page';
 import { PageConfig } from './interfaces/page-config';
 
 function validateInput(userInput: string, errorMessage: string = 'Please enter a value') : boolean|string {
@@ -156,7 +156,7 @@ function _resolveOutputDirectory(outputDir?: string) {
 
 	if(outputDir) {
 		
-		return fs.statAsync(outputDir).then(() => {
+		return fs.stat(outputDir).then(() => {
 			return Promise.resolve(outputDir);
 		}).catch(() => {
 
@@ -273,7 +273,7 @@ export function orgSelection(userMessage: string = 'Choose an org:', includeNewC
 /**
  * Returns a page object for the given org.
  */
-export function getPageSelectionByOrg(org: Org, allowOther: boolean = true) {
+export function getPageSelectionByOrg(org: Org, allowOther: boolean = true) : Promise<Page> {
 
 	let selector = { type: 'page', belongsTo: undefined };
 

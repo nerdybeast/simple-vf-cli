@@ -4,11 +4,11 @@ const cryptoJs = require('crypto-js');
 const _ = require('lodash');
 const debug = require('debug')('svf:info flow');
 
-import * as Bluebird from 'bluebird';
 import db from './db';
 import { default as rollbar } from './rollbar';
 import ErrorMetadata from './models/error-metadata';
 import Org from './models/org';
+import { Page } from './models/page';
 import * as cli from './cli';
 import m from './message';
 import Salesforce from './salesforce';
@@ -19,13 +19,15 @@ import { determineBuildSystem, getPluginModule } from './plugins';
 
 export async function auth() : Promise<Org> {
 	
+	let meta = new ErrorMetadata('auth');
+
 	try {
 		
 		let orgName = await _resolveOrgName(undefined, 'Choose which org to authenticate with:', true);
 		return await _processAuth(orgName);
 
 	} catch (error) {
-		rollbar.exception(error, new ErrorMetadata('auth'), () => m.catchError(error));
+		rollbar.exception(error, meta, () => m.catchError(error));
 	}
 
 }
@@ -74,61 +76,38 @@ export async function serve() : Promise<void> {
 
 }
 
-export function deleteDatabase() {
+export async function deleteDatabase() : Promise<void> {
 
 	let meta = new ErrorMetadata('deleteDatabase');
 
 	try {
 
-		return cli.deleteDatabase().then(shouldDelete => {
+		let shouldDelete = await cli.deleteDatabase();
 
-			if(shouldDelete) {
-				return db.destroy().then(destroyResult => {
-					debug(`Database destroy result => %o`, destroyResult);
-					return Promise.resolve('Delete successful.');
-				});
-			}
+		if(!shouldDelete) {
+			m.success('Delete cancelled');
+			return;
+		}
 
-			return Promise.resolve('Delete cancelled.');
+		let destroyResult = await db.destroy();
+		debug(`Database destroy result => %o`, destroyResult);
 
-		}).then(deleteResult => {
-
-			m.success(deleteResult);
-
-		}).catch(err => {
-			rollbar.exception(err, meta, () => m.catchError(err));
-		});
+		m.success('Delete successful');
 
 	} catch(e) {
 		rollbar.exception(e, meta, () => m.catchError(e));
 	}
 }
 
-export function deployApp() {
+export async function deployApp() : Promise<void> {
 
 	let meta = new ErrorMetadata('deployApp');
 
 	try {
 
-		let org;
-
-		return cli.orgSelection(undefined, false).then(orgChoice => {
-
-			org = orgChoice;
-			return cli.getPageSelectionByOrg(org, false);
-
-		}).then(page => {
-
-			return deploy(org, page);
-
-		}).then(result => {
-
-			debug(`deploy result => %o`, result);
-			return Promise.resolve(result);
-
-		}).catch(err => {
-			rollbar.exception(err, meta, () => m.catchError(err));
-		});
+		let org = await cli.orgSelection('Choose which org to deploy to', false);
+		let page = await cli.getPageSelectionByOrg(org, false);
+		let deployResult = await deploy(org, page);
 
 	} catch(e) {
 		rollbar.exception(e, meta, () => m.catchError(e));
@@ -137,30 +116,35 @@ export function deployApp() {
 
 export async function list() {
 
+	let meta = new ErrorMetadata('list');
+
 	try {
 	
-		let [orgs, pages] = await Promise.all([db.getAllOrgs(), db.getAllPages()]);
+		let [orgs, pages] = await Promise.all([
+			<Org[]>db.getAllOrgs(), 
+			<Page[]>db.getAllPages()
+		]);
 
 		_.sortBy(orgs, ['name']).forEach(org => {
 			
 			let username = chalk.yellow(`(${org.username})`);
 			console.log(`Org: ${org.name} ${username}`);
 
-			pages = pages.filter(page => {
+			let currentOrgPages = pages.filter(page => {
 				return page.belongsTo === org._id;
 			});
 
-			if(pages.length === 0) {
-				pages.push({ name: 'No pages found for this org' });
+			if(currentOrgPages.length === 0) {
+				let defaultPage = new Page();
+				defaultPage.name = 'No pages found for this org';
+				currentOrgPages.push(defaultPage);
 			}
 
-			pages = _.sortBy(pages, ['name']);
-
-			let padding = pages.reduce((prev, page) => {
+			let padding = currentOrgPages.reduce((prev, page) => {
 				return page.name.length > prev ? page.name.length : prev;
 			}, 0);
 			
-			_.sortBy(pages, ['name']).forEach(page => {
+			_.sortBy(currentOrgPages, ['name']).forEach(page => {
 
 				if(page._id) {
 					let pageName = chalk.cyan(_.padEnd(page.name, padding));
@@ -174,7 +158,7 @@ export async function list() {
 		});
 
 	} catch (error) {
-		return Promise.reject(error);
+		rollbar.exception(error, meta, () => m.catchError(error));
 	}
 }
 
@@ -193,26 +177,6 @@ async function _resolveOrgName(orgName: string, userMessage?: string, allowOther
 	if(selectedOrg) return selectedOrg.name;
 
 	return await cli.resolveOrgName();
-}
-
-/**
- * @description Prompts the user to enter a page name if one was not supplied.
- * @returns string
- */
-function _resolvePageName(pageName) {
-	
-	debug(`_resolvePageName() => pageName:`, pageName);
-
-	//Will be true if the user did supply the page name with the command.
-	if(pageName) { return Promise.resolve(pageName); }
-	
-	//Prompts the user to select an authed org or "other".
-	return cli.resolvePageName(pageName).then(selectedPageName => {
-		
-		//NOTE: "selectedPageName" will be null if the user chose the "other" option.
-		return Promise.resolve(selectedPageName);
-
-	});
 }
 
 /**
@@ -268,111 +232,56 @@ async function _processAuth(orgName: string) : Promise<Org> {
 
 }
 
-function _resolveVisualforcePage(pageName, org, pluginName) {
-
-	debug(`_resolveVisualforcePage() => pageName:`, pageName);
-	debug(`_resolveVisualforcePage() => org:`, org);
-
-	let errors = [];
-	if(!pageName) errors.push(`"pageName" parameter must contain a value (given: ${pageName})`);
-	if(!org) errors.push(`"org" parameter must be an instance of an org object (given: ${org})`);
-	if(errors.length > 0) return Promise.reject(new Error(`Errors occurred calling flow._resolveVisualforcePage => ${errors.join(', ')}.`));
-
-	return db.find({
-		selector: {
-			name: pageName,
-			belongsTo: org._id
-		}
-	}).then(async queryResult => {
-		
-		if(queryResult.docs.length > 0) {
-			
-			let doc = queryResult.docs[0];
-
-			if(!doc.plugin) {
-				doc.plugin = pluginName;
-				doc = await db.update(doc);
-			}
-
-			return Promise.resolve(doc);
-		}
-
-		return Promise.resolve({
-			name: pageName,
-			pluginName
-		});
-	
-	}).then(page => {
-
-		return _resolvePageObject(page, org);
-
-	});
-}
-
-async function _resolvePageObject(pluginName, org) {
+async function _resolvePageObject(pluginName: string, org: Org) : Promise<Page> {
 	
 	debug(`_resolvePageObject() => pluginName:`, pluginName);
 	debug(`_resolvePageObject() => org:`, org);
 
-	const plugin = await getPluginModule(pluginName);
+	let plugin = await getPluginModule(pluginName);
+	let pageConfig = await plugin.pageConfig();
 
-	return plugin.pageConfig().then(pageConfig => {
+	let page = new Page();
+	page.name = pageConfig.name;
+	page.belongsTo = org._id;
+	page.port = Number(pageConfig.port);
+	page.outputDir = pageConfig.outputDirectory;
+	page.pluginName = pluginName;
 
-		debug(`_resolvePageObject() => getPageDetails pageConfig:`, pageConfig);
+	let postResult = await db.post(page);
+	debug(`_resolvePageObject() => postResult:`, postResult);
 
-		//TODO: Error handling if this page already exists under this org...
-		return db.post({
-			type: 'page',
-			belongsTo: org._id,
-			name: pageConfig.name,
-			port: Number(pageConfig.port),
-			outputDir: pageConfig.outputDirectory,
-			staticResourceId: null,
-			pluginName
-		});
+	let result = await db.getWithDefault(postResult.id);
+	debug(`_resolvePageObject() => result:`, postResult);
 
-	}).then(postResult => {
-
-		debug(`_resolvePageObject() => postResult:`, postResult);
-		return db.getWithDefault(postResult.id);
-
-	});
-
+	return result;
 }
 
-function _deployNewPage(org, page) {
+async function _deployNewPage(org: Org, page: Page) {
 
 	debug(`_deployNewPage() => org:`, org);
 	debug(`_deployNewPage() => page:`, page);
-	
-	let errors = [];
-	if(!org) errors.push(`"org" parameter must contain a value (given: ${org})`);
-	if(!page) errors.push(`"page" parameter must contain a value (given: ${page})`);
-	if(errors.length > 0) return Promise.reject(new Error(`Errors occurred calling flow._deployNewPage => ${errors.join(', ')}.`));
 
 	m.start(`Deploying new page ${chalk.cyan(page.name)}...`);
 
-	let sf = new Salesforce(org);
+	try {
 
-	return sf.deployNewPage(page).then(pageId => {
+		let sf = new Salesforce(org);
+		let pageId = await sf.deployNewPage(page);
 
 		page.salesforceId = pageId;
-		return db.update(page);
 
-	}).then(updatedPage => {
+		let pageUpdateResult = await db.update(page);
+		m.success(`Successfully created page ${chalk.cyan(page.name)} ${chalk.cyan(`(Id: ${pageUpdateResult.salesforceId})`)}`);
 
-		m.success(`Successfully created page ${chalk.cyan(page.name)} ${chalk.cyan(`(Id: ${updatedPage.salesforceId})`)}`);
-		return Promise.resolve(updatedPage);
+		return pageUpdateResult;
 
-	}).catch(err => {
+	} catch (error) {
 
-		debug(`_deployNewPage err => %o`, err);
-
+		debug(`_deployNewPage err => %o`, error);
+		
 		m.fail(`Failed to create page!`);
-		return Promise.reject(err);
-
-	});
-
+		throw error;
+	}
 }
 
 async function _startTunnel(org, page) {
@@ -400,7 +309,7 @@ async function _startTunnel(org, page) {
 		watcher.start();
 		let answer = (await cli.manageTunnel()) || '';
 	
-		let disconnectPromises = [
+		let disconnectPromises: any[] = [
 			ngrok.disconnectAsync(),
 			_togglePageSettings(org, page, null, false)
 		];
@@ -419,11 +328,11 @@ async function _startTunnel(org, page) {
 
 		m.fail('Failed to establish tunnel');
 
-		return Promise.reject(error);
+		throw error;
 	}
 }
 
-function _togglePageSettings(org, page, url, developmentMode) {
+async function _togglePageSettings(org: Org, page: Page, url: string, developmentMode: boolean) : Promise<void> {
 	
 	let METHOD_NAME = '_togglePageSettings()';
 	debug(`${METHOD_NAME} => page: %o`, page);
@@ -433,44 +342,59 @@ function _togglePageSettings(org, page, url, developmentMode) {
 
 	m.start(`${developmentMode ? 'Enabling' : 'Disabling'} development mode in ${chalk.cyan(org.name)}...`);
 
-	let sf = new Salesforce(org);
-	return sf.updateSetting(page.name, url, developmentMode).then(updateResult => {
+	try {
 
-		if(updateResult.pageConfigPromise.success) {
+		let sf = new Salesforce(org);
+		let { pageConfig, userConfig } = await sf.updateSetting(page.name, url, developmentMode);
+
+		if(pageConfig.success) {
 			m.success(`Development mode ${developmentMode ? 'enabled' : 'disabled'} for page ${chalk.cyan(page.name)}`);
 		} else {
 			m.fail(`Failed to ${developmentMode ? 'enable' : 'disable'} development mode for page ${chalk.cyan(page.name)}`);
 		}
 
-	}).catch(err => {
+	} catch (error) {
 		m.fail(`An error occurred communicating with ${chalk.cyan(org.name)}`);
-		return Promise.reject(err);
-	});
+		throw error;
+	}
 }
 
-function _validateIfOrgIsAuthed(orgName: string) : Promise<Org> {
-
-	let meta = new ErrorMetadata('_validateIfOrgIsAuthed', { orgName });
+async function _validateIfOrgIsAuthed(orgName: string) : Promise<Org> {
 
 	debug(`_validateIfOrgIsAuthed() => orgName:`, orgName);
+	let meta = new ErrorMetadata('_validateIfOrgIsAuthed', { orgName });
 
-	return db.getWithDefault(orgName).then(org => {
-
-		//Will be true if this org does not yet exist in the database.
-		if(!org) {
-			
-			return cli.resolveOrgName(orgName).then(selectedOrgName => {
-				orgName = selectedOrgName;
-				return _processAuth(orgName);
-			});
-		}
-
-		return Promise.resolve(org);
-
-	}).catch(err => {
+	try {
+	
+		let org = await db.getWithDefault(orgName);
 		
-		return rollbar.exceptionAsync(err, meta);
+		if(org) return org;
+	
+		let selectedOrgName = await cli.resolveOrgName(orgName);
+		return _processAuth(selectedOrgName);
 
-	});
+	} catch (error) {
+		await rollbar.exceptionAsync(error, meta);
+	}
 
+	
+
+	// return db.getWithDefault(orgName).then(org => {
+
+	// 	//Will be true if this org does not yet exist in the database.
+	// 	if(!org) {
+			
+	// 		return cli.resolveOrgName(orgName).then(selectedOrgName => {
+	// 			orgName = selectedOrgName;
+	// 			return _processAuth(orgName);
+	// 		});
+	// 	}
+
+	// 	return Promise.resolve(org);
+
+	// }).catch(err => {
+		
+	// 	return rollbar.exceptionAsync(err, meta);
+
+	// });
 }
