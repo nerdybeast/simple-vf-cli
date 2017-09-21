@@ -3,9 +3,10 @@ const _ = require('lodash');
 const chalk = require('chalk');
 const fs = require('fs-extra');
 const debug = require('debug')('svf:info cli');
+const path = require('path');
 
 import db from './db';
-import m from './message';
+import m, { Message } from './message';
 import { Org } from './models/org';
 import { Page } from './models/page';
 import { PageConfig } from './interfaces/page-config';
@@ -19,7 +20,7 @@ function validateInput(userInput: string, errorMessage: string = 'Please enter a
 async function ask(config) {
 
 	let answers = await _base(config);
-	debug(`${config.name} question answer => %o`, answers);
+	debug(`${config.name} question raw answer => %o`, answers);
 
 	return answers[config.name];
 }
@@ -160,23 +161,27 @@ async function askDeleteDatabase() {
 	return ask(config);
 }
 
-let questions = {
-	outputDir: {
+async function askOutputDir() {
+	
+	let config = {
 		type: 'input',
 		name: 'outputDir',
-		message: 'Output directory for your localhost resource (ex: c:/projects/your-app/dist):'
-	}
-};
+		message: 'Output directory for your localhost resource (ex: c:/projects/your-app/dist):',
+		validate(userInput) {
+			
+			let errors = [];
 
-let Question = {
-	basicInput: function(options) {
-		return {
-			type: 'input',
-			name: options.name || 'input',
-			message: options.message
-		};
-	}
-};
+			let validatedInput = validateInput(userInput, 'output directory must contain a value');
+			if(typeof validatedInput === 'string') errors.push(validatedInput);
+			if(!path.isAbsolute(userInput)) errors.push(`path must be entered as an absolute value`);
+
+			return errors.length === 0 || `Error: ${errors.join(', ')}.`;
+		}
+	};
+
+	let outputDir = await ask(config);
+	return path.normalize(outputDir);
+}
 
 function _base(questions) {
 	if(!Array.isArray(questions)) questions = [questions];
@@ -187,56 +192,57 @@ function _base(questions) {
  * @description Returns the same string passed in otherwise, prompts the user to enter a new page name.
  * @returns {string}
  */
-function _resolvePageName(pageName) {
+async function _resolvePageName(pageName) {
 	
-	if(pageName) { return Promise.resolve(pageName); }
+	if(pageName) pageName;
 
-	let pageNameQuestion = Question.basicInput({
+	return ask({
+		type: 'input',
+		name: 'pageName',
 		message: 'Please enter the new VisualForce page name:'
-	});
-
-	return _base([pageNameQuestion]).then(answers => {
-		return Promise.resolve(answers.input);
 	});
 }
 
-function _resolveOutputDirectory(outputDir?: string) {
+async function _resolveOutputDirectory(outputDir?: string) {
 
 	if(outputDir) {
 		
-		return fs.stat(outputDir).then(() => {
-			return Promise.resolve(outputDir);
-		}).catch(() => {
+		try {
+			
+			await fs.stat(outputDir);
+			return outputDir;
 
-			return _base([{
-				type: 'confirm',
+		} catch (error) {
+			
+			console.log();
+
+			let message = new Message();
+			message.warn(`The output directory ${chalk.cyan(outputDir)} doesn\'t exist yet!`);
+
+			console.log();
+
+			let confirmOutputDir = await ask({
+				type: 'list',
 				name: 'confirmOutputDir',
-				message: `The output directory ${chalk.cyan(outputDir)} doesn\'t exist yet, continue anyway? Select "no" to re-enter the path to the build system ouput directory:`
-			}]).then(answer => {
-
-				debug(`confirm answer => %o`, answer);
-
-				if(answer.confirmOutputDir) {
-					return Promise.resolve(outputDir);
-				}
-
-				return _resolveOutputDirectory();
+				message: `Choose, "Yes" to keep ${chalk.cyan(outputDir)}, choose "No" to re-enter the ouput directory path:`,
+				default: false,
+				choices: [{
+					name: 'Yes',
+					value: true
+				}, {
+					name: 'No',
+					value: false
+				}]
 			});
 
-		});
+			if(confirmOutputDir) return outputDir;
 
+			return _resolveOutputDirectory();
+		}
 	}
 
-	return _base([questions.outputDir]).then(answers => {
-		return _resolveOutputDirectory(answers.outputDir);
-	});
-}
-export function resolveOutputDirectory(outputDir: string) : Promise<string> {
-	return _resolveOutputDirectory(outputDir);
-}
-
-export function askBasicInput(options: any) : Promise<any> {
-	return _base([Question.basicInput(options)]);
+	let chosenOutputDir = await askOutputDir();
+	return _resolveOutputDirectory(chosenOutputDir);
 }
 
 export async function getOrgCredentials(org?: Org) : Promise<any> {
@@ -260,84 +266,75 @@ export async function getOrgCredentials(org?: Org) : Promise<any> {
 /**
  * Asks the user to select an authed org.
  */
-export function orgSelection(userMessage: string = 'Choose an org:', includeNewChoice: boolean = true) : Promise<Org> {
-	
-	debug(`orgSelection() userMessage => ${userMessage}`);
+export async function orgSelection(userMessage: string = 'Choose an org:', includeNewChoice: boolean = true) : Promise<Org> {
 
-	return db.find({
-		selector: { type: 'auth' }
-	}).then(searchResult => {
+	try {
+		
+		let orgs = await db.getAllOrgs();
 
-		let orgs = _.map(searchResult.docs, (doc) => {
+		if(orgs.length === 0) return null;
+
+		let choices = _.map(orgs, (org) => {
 			return {
-				name: `${doc._id} (${doc.username})`,
-				value: doc
+				name: `${org._id} (${org.username})`,
+				value: org
 			};
 		});
 
 		if(includeNewChoice) {
-			orgs.push({
+			choices.push({
 				name: 'other',
 				value: null
 			});
 		}
 
-		if(orgs.length === 0) {
-			return Promise.resolve(null);
-		}
-
-		return _base([{
+		return await ask({
 			type: 'list',
 			name: 'orgChoice',
 			message: userMessage,
-			choices: orgs
-		}]).then(answers => {
-			return answers.orgChoice;
+			choices
 		});
 
-	});
-
+	} catch (error) {
+		debug(`error with org selection list => %o`, error);
+		throw error;
+	}
 }
 
 /**
  * Returns a page object for the given org.
  */
-export function getPageSelectionByOrg(org: Org, allowOther: boolean = true) : Promise<Page> {
+export async function getPageSelectionByOrg(org: Org, allowOther: boolean = true) : Promise<Page> {
 
-	let selector = { type: 'page', belongsTo: undefined };
+	try {
+		
+		let pages = await db.getAllPages(org._id);
 
-	if(org) {
-		selector.belongsTo = org._id;
-	}
-
-	return db.find({ selector }).then(queryResult => {
-
-		debug(`page queryResult => %o`, queryResult);
-
-		let pages = _.map(queryResult.docs, (doc) => {
+		let choices = _.map(pages, (page) => {
 			return {
-				name: `${doc.name} (${doc.port} | ${doc.outputDir})`,
-				value: doc
+				name: `${page.name} (${page.port} | ${page.outputDir})`,
+				value: page
 			};
 		});
 
 		if(allowOther) {
-			pages.push({
+			choices.push({
 				name: 'other',
 				value: null
 			});
 		}
 
-		return _base([{
+		return await ask({
 			type: 'list',
 			name: 'pageChoice',
 			message: 'Choose a page:',
-			choices: pages
-		}]);
+			choices
+		});
 
-	}).then(answers => {
-		return answers.pageChoice;
-	});
+	} catch (error) {
+		debug(`get page by org error => %o`, error);
+		throw error;
+	}
 }
 
 /**
@@ -353,12 +350,10 @@ export async function getPageDetails(pageName: string) : Promise<PageConfig> {
 }
 
 export function manageTunnel() : Promise<string> {
-	return _base([{
+	return ask({
 		type: 'input',
 		name: 'stopTunnel',
 		message: `Hit 'enter' to stop development mode or type ${chalk.cyan('deploy')} and hit 'enter' to stop development mode and immediately deploy your app:`
-	}]).then(answers => {
-		return Promise.resolve(answers.stopTunnel);
 	});
 }
 

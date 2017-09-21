@@ -7,6 +7,7 @@ const rollbar = require('./rollbar');
 
 import { appSettingsLocation } from './paths';
 import { Org } from './models/org';
+import { Page } from './models/page';
 
 PouchDB.plugin(require('pouchdb-find'));
 
@@ -110,14 +111,18 @@ PouchDB.plugin({
 		});
 	},
 
-	getAllPages() {
-		return this.find({
-			selector: { type: 'page' }
-		}).then(searchResult => {
-			return searchResult.docs;
-		});
-	}
+	async getAllPages(orgId?: string) : Promise<Page[]> {
+		
+		let selector: any = {
+			type: 'page'
+		};
 
+		if(orgId) selector.belongsTo = orgId;
+
+		let pagesQueryResult = await this.find({ selector });
+		return pagesQueryResult.docs;
+	}
+	
 });
 
 let db;

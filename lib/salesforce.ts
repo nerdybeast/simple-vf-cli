@@ -137,97 +137,9 @@ class Salesforce {
 				debug(`Delete result for ${resource.type} ${resource.id} => %o`, deleteResult);
 			}
 
-			// _.sortBy(createdResources, ['order']).forEach(async resource => {
-			// 	let connection = resource.isTooling ? this.conn.tooling : this.conn;
-			// 	await connection.sobject(resource.type).delete(resource.id);
-			// });
-
 			throw error;
 		}
 
-		// return this.validateAuthentication().then(() => {
-
-		// 	return this.conn.query(`Select Id From ApexPage Where Name = '${page.name}'`);
-
-		// }).then(queryResult => {
-
-		// 	if(queryResult.totalSize > 0) {
-		// 		return Promise.resolve(queryResult.records[0].Id);
-		// 	}
-
-		// 	let newApexPage;
-		// 	let createdResources = [];
-
-		// 	return this.processCustomSettings().then(() => {
-			
-		// 		let options = templates.controller(page.name);
-
-		// 		return this.createSobject('ApexClass', {
-		// 			Name: options.name,
-		// 			Body: options.body
-		// 		});
-
-		// 	}).then(controllerClass => {
-
-		// 		debug(`controllerClass => %o`, controllerClass);
-
-		// 		createdResources.push({ order: 4, type: 'ApexClass', id: controllerClass.id, isTooling: false });
-
-		// 		let bitmap = fs.readFileSync(path.join(__dirname, 'static/placeholder.txt'));
-		// 		let staticResourceContent = new Buffer(bitmap).toString('base64');
-		// 		let staticResourceOptions = this.createStaticResourceOptions(page, 'text/plain', staticResourceContent);
-				
-		// 		return this.createSobject('StaticResource', staticResourceOptions, true);
-
-		// 	}).then(async staticResource => {
-
-		// 		debug(`staticResource => %o`, staticResource);
-
-		// 		createdResources.push({ order: 2, type: 'StaticResource', id: staticResource.id, isTooling: true });
-
-		// 		let plugin = await getPluginModule(page.pluginName);
-		// 		let html = await plugin.getHtmlMarkup(page);
-		// 		let markup = templates.apexPageWrapper(page, html);
-
-		// 		return this.createSobject('ApexPage', {
-		// 			Name: page.name,
-		// 			MasterLabel: page.name,
-		// 			Markup: markup
-		// 		});
-
-		// 	}).then(apexPage => {
-
-		// 		debug(`apexPage => %o`, apexPage);
-
-		// 		createdResources.push({ order: 1, type: 'ApexPage', id: apexPage.id, isTooling: false });
-
-		// 		newApexPage = apexPage;
-
-		// 		let options = templates.controllerTest(page.name);
-				
-		// 		return this.createSobject('ApexClass', {
-		// 			Name: options.name,
-		// 			Body: options.body
-		// 		});
-
-		// 	}).then(controllerTestClass => {
-
-		// 		debug(`controllerTestClass => %o`, controllerTestClass);
-
-		// 		createdResources.push({ order: 3, type: 'ApexClass', id: controllerTestClass.id, isTooling: false });
-
-		// 		return Promise.resolve(newApexPage.id);
-
-		// 	}).catch(error => {
-
-		// 		_.sortBy(createdResources, ['order']).forEach(async resource => {
-		// 			let connection = resource.isTooling ? this.conn.tooling : this.conn;
-		// 			await connection.sobject(resource.type).delete(resource.id);
-		// 		});
-
-		// 		throw error;
-		// 	});
-		// });
 	}
 
 	async processCustomSettings() : Promise<any> {
@@ -286,26 +198,20 @@ class Salesforce {
 		}
 	}
 
-	saveStaticResource(page: Page, zipFilePath) {
+	async saveStaticResource(page: Page, zipFilePath) {
 
 		debug(`saveStaticResource() page => %o`, page);
 
 		m.start('Deploying static resource to Salesforce...');
 
-		return this.validateAuthentication().then(() => {
+		try {
 			
-			//TODO: If we find a static resource in the org matching this page name, we need to update the page object
+			await this.validateAuthentication();
 
 			if(!page.staticResourceId) {
-				return this.getSobjectByName('StaticResource', page.name).then(staticResource => {
-					page.staticResourceId = staticResource !== null ? staticResource.Id : null;
-					return page;
-				});
+				let staticResource = await this.getSobjectByName('StaticResource', page.name);
+				page.staticResourceId = staticResource !== null ? staticResource.Id : null;
 			}
-
-			return Promise.resolve(page);
-
-		}).then(page => {
 
 			let bitmap = fs.readFileSync(zipFilePath);
 			let body = new Buffer(bitmap).toString('base64');
@@ -313,35 +219,22 @@ class Salesforce {
 			let options = this.createStaticResourceOptions(page, 'application/zip', body);
 
 			let sobject = this.conn.tooling.sobject('StaticResource');
-			return ('Id' in options) ? sobject.update(options) : sobject.create(options);
+			let staticResourceResult = await (('Id' in options) ? sobject.update(options) : sobject.create(options));
+			debug(`save static resource result => %o`, staticResourceResult);
 
-		}).then(result => {
+			m.success('Static resource successfully deployed.');
+			return staticResourceResult.id;
 
-			if(result.success) {
-				m.success('Static resource successfully deployed.');
-				return Promise.resolve(result.id);
-			}
-
-			return Promise.reject(result);
-
-		}).catch(err => {
-
+		} catch (error) {
 			m.fail('Failed to save static resource in Salesforce.');
-			return Promise.reject(err);
-
-		});
-
+			throw error;
+		}
 	}
 
-	getSobjectByName(sobject, name) {
-
-		return this.conn.query(`Select Id, Name From ${sobject} Where Name = '${name}'`).then(queryResult => {
-
-			debug(`getSobjectByName() queryResult => %o`, queryResult);
-			return queryResult.totalSize > 0 ? queryResult.records[0] : null;
-
-		});
-
+	async getSobjectByName(sobject, name) {
+		let queryResult = await this.conn.query(`Select Id, Name From ${sobject} Where Name = '${name}'`);
+		debug(`getSobjectByName() queryResult => %o`, queryResult);
+		return queryResult.totalSize > 0 ? queryResult.records[0] : null;
 	}
 
 	createStaticResourceOptions(page: Page, contentType: string, body: string) : StaticResourceOptions {
@@ -363,30 +256,26 @@ class Salesforce {
 		return options;
 	}
 
-	createSobject(sobjectName: string, options: any, isTooling: boolean = false) {
+	async createSobject(sobjectName: string, options: any, isTooling: boolean = false) {
+		
+		try {
+			
+			let api = isTooling ? this.conn.tooling : this.conn;
+			let sobjectResult = await api.sobject(sobjectName).create(options);
+			debug(`create sobject result => %o`, sobjectResult);
 
-		let api = isTooling ? this.conn.tooling : this.conn;
+			return sobjectResult;
 
-		return api.sobject(sobjectName).create(options).catch(err => {
+		} catch (error) {
+			
+			debug(`create sobject error => %o`, error);
 
-			if(err.errorCode === 'DUPLICATE_VALUE' && err.message.includes('<unknown>')) {
-				err.message = `Duplicate value found: An Sobject of type "${sobjectName}" already exists with the name "${options.Name}"`;
+			if(error.errorCode === 'DUPLICATE_VALUE' && error.message.includes('<unknown>')) {
+				error.message = `Duplicate value found: An Sobject of type "${sobjectName}" already exists with the name "${options.Name}"`;
 			}
 
-			return Promise.reject(err);
-		});
-	}
-
-	async starQuery(sobject: string, whereClause?: string) : Promise<any> {
-		let fieldNames = await this.getSobjectFieldNames(sobject);
-		let query = `Select ${fieldNames.join(',')} From ${sobject}`;
-		if(whereClause) query += whereClause;
-		return this.conn.query(query);
-	}
-
-	async getSobjectFieldNames(sobject: string) : Promise<string[]> {
-		let describeResult = await this.conn.sobject(sobject).describe();
-		return describeResult.fields.map(x => x.name);
+			throw error;
+		}
 	}
 }
 
