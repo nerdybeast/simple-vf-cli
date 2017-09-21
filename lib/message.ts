@@ -1,7 +1,7 @@
 const Ora = require('ora');
 const chalk = require('chalk');
 
-class Message {
+export class Message {
 
 	_message: any;
 	_isAlive: boolean;

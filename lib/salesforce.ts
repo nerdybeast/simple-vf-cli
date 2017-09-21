@@ -8,7 +8,7 @@ const debug = require('debug')('svf:info salesforce');
 import * as cli from './cli';
 import db from './db';
 import m from './message';
-import Org from './models/org';
+import { Org } from './models/org';
 import { Page } from './models/page';
 import StaticResourceOptions from './models/static-resource-options';
 import * as templates from './templates';

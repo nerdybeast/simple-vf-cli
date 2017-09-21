@@ -7,7 +7,7 @@ const debug = require('debug')('svf:info deploy');
 import Salesforce from './salesforce';
 import db from './db';
 import SvfError from './models/svf-error';
-import Org from './models/org';
+import { Org } from './models/org';
 import { Page } from './models/page';
 
 const TEMP_DIR_PATH = path.join(__dirname, '../temp');

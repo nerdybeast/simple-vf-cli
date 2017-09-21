@@ -1,7 +1,7 @@
 import { Plugin } from '../interfaces/plugin';
 import { PageConfig } from '../interfaces/page-config';
 import { getPageDetails } from '../cli';
-import Org from '../models/org';
+import { Org } from '../models/org';
 import { defaultHtml } from '../templates';
 
 class DefaultPlugin implements Plugin {
