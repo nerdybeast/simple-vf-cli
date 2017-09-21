@@ -9,7 +9,7 @@ import { ModuleDetails } from './interfaces/module-details';
 import { Plugin } from './interfaces/plugin';
 
 const debug = require('debug')('svf:info plugin');
-let pluginDirectory = `${appSettingsLocation}/plugins`;
+let _pluginDirectory = `${appSettingsLocation}/plugins`;
 
 debug('fs-extra import => %o', fs.pathExists);
 
@@ -57,7 +57,7 @@ export async function determineBuildSystem() {
 
 export async function getPluginModule(name: string) : Promise<Plugin> {
 
-	let pluginLocation = name === 'default' ? './built-in-plugins/default' : `${pluginDirectory}/node_modules/${name}`;
+	let pluginLocation = name === 'default' ? './built-in-plugins/default' : `${_pluginDirectory}/node_modules/${name}`;
 	debug(`getPluginModule() => pluginLocation:`, pluginLocation);
 
 	const { default: plugin } = await import(pluginLocation);
@@ -90,7 +90,7 @@ function installPlugins(plugins: ModuleDetails | ModuleDetails[]) {
 	return new Promise((resolve, reject) => {
 
 		let child = spawn('npm', ['install', ...pluginNames, '--save', '--save-exact'], {
-			cwd: pluginDirectory
+			cwd: _pluginDirectory
 		});
 
 		child.on('data', (data) => debug(`installPlugins data => ${data}`));
@@ -118,7 +118,7 @@ function installPlugins(plugins: ModuleDetails | ModuleDetails[]) {
 
 async function getInstalledPlugins() : Promise<ModuleDetails[]> {
 
-	let packageJson = await fs.readJson(`${pluginDirectory}/package.json`);
+	let packageJson = await fs.readJson(`${_pluginDirectory}/package.json`);
 	debug(`getInstalledPlugins() packageJson => %o`, packageJson);
 
 	packageJson.dependencies = packageJson.dependencies || {};
@@ -196,7 +196,7 @@ async function ensureAppSettingsPackageJsonExists() : Promise<void> {
 
 	try {
 		
-		let packageJsonFile = `${pluginDirectory}/package.json`;
+		let packageJsonFile = `${_pluginDirectory}/package.json`;
 		let exists = await fs.pathExists(packageJsonFile);
 
 		if(!exists) await fs.outputJson(packageJsonFile, { name: 'temp', version: '0.0.0' });

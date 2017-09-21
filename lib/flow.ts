@@ -7,7 +7,7 @@ const debug = require('debug')('svf:info flow');
 import db from './db';
 import { default as rollbar } from './rollbar';
 import ErrorMetadata from './models/error-metadata';
-import Org from './models/org';
+import { Org } from './models/org';
 import { Page } from './models/page';
 import * as cli from './cli';
 import m from './message';
@@ -16,6 +16,7 @@ import Ngrok from './ngrok';
 import Watcher from './watcher';
 import deploy from './deploy';
 import { determineBuildSystem, getPluginModule } from './plugins';
+import processAuth from './logic/process-auth';
 
 export async function auth() : Promise<Org> {
 	
@@ -24,10 +25,12 @@ export async function auth() : Promise<Org> {
 	try {
 		
 		let orgName = await _resolveOrgName(undefined, 'Choose which org to authenticate with:', true);
-		return await _processAuth(orgName);
+		return await processAuth(orgName);
 
 	} catch (error) {
-		rollbar.exception(error, meta, () => m.catchError(error));
+		rollbar.exception(error, meta, async () => {
+			m.catchError(error);
+		});
 	}
 
 }
@@ -176,60 +179,7 @@ async function _resolveOrgName(orgName: string, userMessage?: string, allowOther
 
 	if(selectedOrg) return selectedOrg.name;
 
-	return await cli.resolveOrgName();
-}
-
-/**
- * @description Logs the user into Salesforce and saves their auth credentials into the database.
- * @returns An auth object.
- */
-async function _processAuth(orgName: string) : Promise<Org> {
-
-	debug(`_processAuth() => orgName:`, orgName);
-
-	try {
-
-		let savedOrg = await db.getWithDefault(orgName);
-		let credentials = await cli.getOrgCredentials(savedOrg);
-		let conn = new jsforce.Connection({ loginUrl: credentials.orgType });
-	
-		let password = credentials.password;
-	
-		if(credentials.securityToken) {
-			password += credentials.securityToken;
-		}
-	
-		m.start('Authenticating into org...');
-	
-		let [loginResult, encryptionKey] = await Promise.all([
-			conn.login(credentials.username, password),
-			db.getEncryptionKey()
-		]);
-	
-		debug(`jsforce.login() loginResult => %o`, loginResult);
-		m.success(`Successfully authenticated: ${chalk.cyan(conn.instanceUrl)}`);
-	
-		let org = new Org();
-		org._id = orgName;
-		org.name = orgName;
-		org.loginUrl = credentials.orgType;
-		org.instanceUrl = conn.instanceUrl;
-		org.username = credentials.username;
-		org.password = cryptoJs.AES.encrypt(credentials.password, encryptionKey).toString();
-		org.securityToken = credentials.securityToken;
-		org.userId = loginResult.id;
-		org.orgId = loginResult.organizationId;
-		org.accessToken = conn.accessToken;
-	
-		org = await db.update(org);
-
-		return org;
-
-	} catch (error) {
-		m.fail(`Authentication to ${chalk.cyan(orgName)} failed.`);
-		throw error;
-	}
-
+	return await cli.getOrgName();
 }
 
 async function _resolvePageObject(pluginName: string, org: Org) : Promise<Page> {
@@ -370,31 +320,10 @@ async function _validateIfOrgIsAuthed(orgName: string) : Promise<Org> {
 		
 		if(org) return org;
 	
-		let selectedOrgName = await cli.resolveOrgName(orgName);
-		return _processAuth(selectedOrgName);
+		//let selectedOrgName = await cli.getOrgName(orgName);
+		return processAuth(orgName);
 
 	} catch (error) {
 		await rollbar.exceptionAsync(error, meta);
 	}
-
-	
-
-	// return db.getWithDefault(orgName).then(org => {
-
-	// 	//Will be true if this org does not yet exist in the database.
-	// 	if(!org) {
-			
-	// 		return cli.resolveOrgName(orgName).then(selectedOrgName => {
-	// 			orgName = selectedOrgName;
-	// 			return _processAuth(orgName);
-	// 		});
-	// 	}
-
-	// 	return Promise.resolve(org);
-
-	// }).catch(err => {
-		
-	// 	return rollbar.exceptionAsync(err, meta);
-
-	// });
 }

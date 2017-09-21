@@ -6,99 +6,74 @@ const debug = require('debug')('svf:info cli');
 
 import db from './db';
 import m from './message';
-import Org from './models/org';
+import { Org } from './models/org';
 import { Page } from './models/page';
 import { PageConfig } from './interfaces/page-config';
 
 function validateInput(userInput: string, errorMessage: string = 'Please enter a value') : boolean|string {
 	userInput = (userInput || '').trim();
-	let isValid = (userInput && userInput.length > 0);
+	let isValid = userInput.length > 0;
 	return isValid || errorMessage;
 }
 
-let questions = {
-	
-	username(username?: string) {
-		
-		let suffix = username ? ` (default: ${chalk.cyan(username)})` : '';
+async function ask(config) {
 
-		return {
-			type: 'input',
-			name: 'username',
-			message: `Username${suffix}:`,
-			default: username,
-			validate(userInput) { return validateInput(userInput, 'Username must contain a value'); }
-		};
-	},
+	let answers = await _base(config);
+	debug(`${config.name} question answer => %o`, answers);
 
-	password: {
+	return answers[config.name];
+}
+
+async function askUsername(username?: string) : Promise<string> {
+
+	let config: any = {
+		type: 'input',
+		name: 'username',
+		message: `Username:`,
+		default: username,
+		validate(userInput) { return validateInput(userInput, 'Username must contain a value'); }
+	};
+
+	return ask(config);
+}
+
+async function askPassword() {
+
+	let config: any = {
 		type: 'password',
 		name: 'password',
 		message: 'Password:',
 		validate(userInput) { return validateInput(userInput, 'Password must contain a value'); }
-	},
+	}
 
-	getSecurityToken(questionVerbage: string = 'Security Token', securityToken?: string) {
+	return ask(config);
+}
 
-		let suffix = securityToken ? ` (default: ${chalk.cyan(securityToken)})` : ' (hit enter to bypass)';
+async function askSecurityToken(questionVerbage: string = 'Security Token', securityToken?: string) {
+	
+	//Inquirer.js treats an empty string as a legit default value so we need to force to undefined to avoid extra parenthesis in the user's output,
+	//we need to avoid the output looking like this: "Security Token (hit enter to bypass): ()"
+	if(!securityToken) securityToken = undefined;
 
-		return {
-			type: 'input',
-			name: 'securityToken',
-			message: `${questionVerbage}${suffix}:`
-		};
-	},
+	let suffix = securityToken ? `` : ' (hit enter to bypass)';
 
-	port(portNumber?: number) {
-
-		let suffix = portNumber ? `(default: ${chalk.cyan(portNumber)})` : `(example: 8080)`;
-
-		return {
-			type: 'input',
-			name: 'port',
-			message: `Port your local build system serves up on ${suffix}, value must be a number:`,
-			default: portNumber,
-			validate(userInput) {
-				userInput = (userInput || '').trim();
-				let hasValue = (userInput && userInput.length > 0);
-				if(!hasValue) return 'Please enter a port number';
-				if(!Number.isInteger(Number(userInput))) return 'Port must contain numbers only';
-				return true;
-			}
-		};
-	},
-
-	outputDir: {
+	let config: any = {
 		type: 'input',
-		name: 'outputDir',
-		message: 'Output directory for your localhost resource (ex: c:/projects/your-app/dist):'
-	},
-	vfPageName: {
-		type: 'input',
-		name: 'page',
-		message: 'Name of the visualforce page you\'re working on:'
-	},
-	orgName(orgName?: string, questionVerbage?: string) {
-		
-		let suffix = orgName ? `(default: ${chalk.cyan(orgName)})` : '';
+		name: 'securityToken',
+		message: `${questionVerbage}${suffix}:`,
+		default: securityToken
+	};
 
-		return {
-			type: 'input',
-			name: 'orgName',
-			message: questionVerbage || `Please enter a name to act as an alias for this org${suffix}:`,
-			default: orgName,
-			validate(userInput) { return validateInput(userInput, 'Org name must contain a value'); }
-		};
-	},
-	deleteDatabase: {
-		type: 'confirm',
-		name: 'deleteDatabase',
-		message: 'Are you sure you want to delete all org and page entries?'
-	},
-	orgType: {
+	return ask(config);
+}
+
+async function askOrgType(orgType?: string) {
+
+	let config = {
 		type: 'list',
 		name: 'orgType',
 		message: 'Please select the type of org:',
+		default: orgType,
 		choices: [{
 			name: 'sandbox',
 			value: 'https://test.salesforce.com'
@@ -106,8 +81,59 @@ let questions = {
 			name: 'production',
 			value: 'https://login.salesforce.com'
 		}]
-	},
-	plugin: {
+	};
+
+	return ask(config);
+}
+
+async function askPort(portNumber?: number) {
+	
+	let suffix = portNumber ? `(default: ${chalk.cyan(portNumber)})` : `(example: 8080)`;
+
+	let config = {
+		type: 'input',
+		name: 'port',
+		message: `Port your local build system serves up on ${suffix}, value must be a number:`,
+		default: portNumber,
+		validate(userInput) {
+			userInput = (userInput || '').trim();
+			let hasValue = (userInput && userInput.length > 0);
+			if(!hasValue) return 'Please enter a port number';
+			if(!Number.isInteger(Number(userInput))) return 'Port must contain numbers only';
+			return true;
+		}
+	};
+
+	return ask(config);
+}
+
+async function askPageName() {
+
+	let config = {
+		type: 'input',
+		name: 'page',
+		message: 'Name of the visualforce page you\'re working on:'
+	};
+
+	return ask(config);
+}
+
+async function askOrgName(orgName?: string, questionVerbage?: string) {
+	
+	let config = {
+		type: 'input',
+		name: 'orgName',
+		message: questionVerbage || `Please enter a name to act as an alias for this org:`,
+		default: orgName,
+		validate(userInput) { return validateInput(userInput, 'Org name must contain a value'); }
+	};
+
+	return ask(config);
+}
+
+async function askPlugin() {
+	
+	let config = {
 		type: 'list',
 		name: 'plugin',
 		message: 'Build system:',
@@ -118,6 +144,27 @@ let questions = {
 			name: 'other',
 			value: 'default'
 		}]
+	};
+
+	return ask(config);
+}
+
+async function askDeleteDatabase() {
+
+	let config = {
+		type: 'confirm',
+		name: 'deleteDatabase',
+		message: 'Are you sure you want to delete all org and page entries?'
+	};
+
+	return ask(config);
+}
+
+let questions = {
+	outputDir: {
+		type: 'input',
+		name: 'outputDir',
+		message: 'Output directory for your localhost resource (ex: c:/projects/your-app/dist):'
 	}
 };
 
@@ -132,6 +179,7 @@ let Question = {
 };
 
 function _base(questions) {
+	if(!Array.isArray(questions)) questions = [questions];
 	return inquirer.prompt(questions);
 }
 
@@ -191,41 +239,22 @@ export function askBasicInput(options: any) : Promise<any> {
 	return _base([Question.basicInput(options)]);
 }
 
-export function getOrgCredentials(org?: Org) : Promise<any> {
+export async function getOrgCredentials(org?: Org) : Promise<any> {
 	
 	debug(`getOrgCredentials() => org: %o`, org);
-
-	let questionsToAsk = [];
-
-	if(!org) questionsToAsk.push(questions.orgType);
 
 	//Initialize this parameter to an object to help avoid null reference errors.
 	org = org || new Org();
 
-	let usernameQ = questions.username(org.username);
-	questionsToAsk.push(usernameQ);
+	let orgType = await askOrgType(org.loginUrl);
+	let username = await askUsername(org.username);
+	let password = await askPassword();
+	let securityToken = await askSecurityToken(undefined, org.securityToken)
 
-	questionsToAsk.push(questions.password);
+	let credentials = { orgType, username, password, securityToken };
+	debug(`getOrgCredentials() => %o`, credentials);
 
-	let securityTokenQ = questions.getSecurityToken(undefined, org.securityToken);
-	questionsToAsk.push(securityTokenQ);
-
-	return _base(questionsToAsk).then(answers => {
-		
-		debug(`getOrgCredentials() => answers: %o`, answers);
-
-		answers.orgType = answers.orgType || org.loginUrl;
-
-		//Will use these stored values, otherwise will use what the user has entered.
-		answers[usernameQ.name] = answers[usernameQ.name] || org.username;
-		answers[securityTokenQ.name] = answers[securityTokenQ.name].trim() || (org.securityToken || '');
-		
-		return answers;
-	});
-}
-
-export function getNgrokTunnelDetails() : Promise<any> {
-	return _base([questions.port(), questions.vfPageName]);
+	return credentials;
 }
 
 /**
@@ -311,17 +340,13 @@ export function getPageSelectionByOrg(org: Org, allowOther: boolean = true) : Pr
 	});
 }
 
-export function resolvePageName(pageName: string) : Promise<string> {
-	return _resolvePageName(pageName);
-}
-
 /**
  * Retrieves the page config details like name, port, output directory. This method is used by the default plugin.
  */
 export async function getPageDetails(pageName: string) : Promise<PageConfig> {
 	
 	let name = await _resolvePageName(pageName);
-	let port = (await _base([questions.port()])).port;
+	let port = await askPort();
 	let outputDirectory = await _resolveOutputDirectory();
 
 	return { name, port, outputDirectory };
@@ -337,35 +362,21 @@ export function manageTunnel() : Promise<string> {
 	});
 }
 
-export function deleteDatabase() : Promise<boolean> {
-	return _base([questions.deleteDatabase]).then(answers => Promise.resolve(answers.deleteDatabase));
+export async function deleteDatabase() : Promise<boolean> {
+	return await askDeleteDatabase();
 }
 
-export function getSecurityToken(questionVerbage: string) : Promise<string> {
-	
+export async function getSecurityToken(questionVerbage: string) : Promise<string> {
 	m.stop();
-
-	return _base([questions.getSecurityToken(questionVerbage)]).then(answers => {
-		m.start();
-		return Promise.resolve(answers.securityToken);
-	});
+	let securityToken = await askSecurityToken(questionVerbage);
+	m.start();
+	return securityToken;
 }
 
-export function getBuildSystem() : Promise<string> {
-	return _base([questions.plugin]).then(answers => {
-		let pluginName = answers.plugin;
-		debug(`build system => ${pluginName}`);
-		return pluginName;
-	});
+export async function getBuildSystem() : Promise<string> {
+	return await askPlugin();
 }
 
-//----------------------------------
-
-export function resolveOrgName(orgName?: string) : Promise<string> {
-
-	if(orgName) return Promise.resolve(orgName);
-
-	return _base([questions.orgName()]).then(answers => {
-		return answers.orgName;
-	});
+export async function getOrgName(orgName?: string) : Promise<string> {
+	return await askOrgName(orgName);
 }

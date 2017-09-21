@@ -1,4 +1,4 @@
-export default class {
+export class Org {
 	loginUrl: string;
 	instanceUrl: string;
 	username: string;
