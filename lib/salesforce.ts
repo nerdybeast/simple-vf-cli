@@ -1,7 +1,6 @@
 const fs = require('fs');
 const path = require('path');
 const jsforce = require('jsforce');
-const Bluebird = require('bluebird');
 const cryptoJS = require('crypto-js');
 const _ = require('lodash');
 const debug = require('debug')('svf:info salesforce');
@@ -9,7 +8,8 @@ const debug = require('debug')('svf:info salesforce');
 import * as cli from './cli';
 import db from './db';
 import m from './message';
-import Org from './models/org';
+import { Org } from './models/org';
+import { Page } from './models/page';
 import StaticResourceOptions from './models/static-resource-options';
 import * as templates from './templates';
 import { getPluginModule } from './plugins'
@@ -32,215 +32,261 @@ class Salesforce {
 		debug(`Salesforce class instantiated with => %o`, org);
 	}
 
-	updateSetting(pageName: string, url: string, developmentMode) {
+	async updateSetting(pageName: string, url: string, developmentMode) {
 		
-		return this.validateAuthentication().then(() => {
+		await this.validateAuthentication();
 
-			return Bluebird.props({
-				pageConfig: this.conn.query(`Select Id, Name, DevelopmentMode__c, TunnelUrl__c From Simple_VF_Pages__c Where Name = '${pageName}'`),
-				userConfig: this.conn.query(`Select Id, Name, SetupOwnerId, DevelopmentMode__c From Simple_VF_Users__c Where SetupOwnerId = '${this.org.userId}'`)
-			});
+		let [pageConfigQueryResult, userConfigQueryResult] = await Promise.all([
+			this.conn.query(`Select Id, Name, DevelopmentMode__c, TunnelUrl__c From Simple_VF_Pages__c Where Name = '${pageName}'`),
+			this.conn.query(`Select Id, Name, SetupOwnerId, DevelopmentMode__c From Simple_VF_Users__c Where SetupOwnerId = '${this.org.userId}'`)
+		]);
 
-		}).then(hash => {
+		let promises = [];
 
-			let pageConfigPromise, userConfigPromise;
+		if(pageConfigQueryResult.totalSize > 0) {
+			let pageConfig = pageConfigQueryResult.records[0];
+			promises.push(this.conn.sobject('Simple_VF_Pages__c').update({ Id: pageConfig.Id, DevelopmentMode__c: developmentMode, TunnelUrl__c: url }));
+		} else {
+			promises.push(this.conn.sobject('Simple_VF_Pages__c').create({ Name: pageName, DevelopmentMode__c: developmentMode, TunnelUrl__c: url }));
+		}
 
-			if(hash.pageConfig.totalSize > 0) {
-				let pageConfig = hash.pageConfig.records[0];
-				pageConfigPromise = this.conn.sobject('Simple_VF_Pages__c').update({ Id: pageConfig.Id, DevelopmentMode__c: developmentMode, TunnelUrl__c: url });
-			} else {
-				pageConfigPromise = this.conn.sobject('Simple_VF_Pages__c').create({ Name: pageName, DevelopmentMode__c: developmentMode, TunnelUrl__c: url });
-			}
+		if(userConfigQueryResult.totalSize > 0) {
+			let userConfig = userConfigQueryResult.records[0];
+			promises.push(this.conn.sobject('Simple_VF_Users__c').update({ Id: userConfig.Id, DevelopmentMode__c: developmentMode }));
+		} else {
+			promises.push(this.conn.sobject('Simple_VF_Users__c').create({ SetupOwnerId: this.org.userId, DevelopmentMode__c: developmentMode }));
+		}
 
-			if(hash.userConfig.totalSize > 0) {
-				let userConfig = hash.userConfig.records[0];
-				userConfigPromise = this.conn.sobject('Simple_VF_Users__c').update({ Id: userConfig.Id, DevelopmentMode__c: developmentMode });
-			} else {
-				userConfigPromise = this.conn.sobject('Simple_VF_Users__c').create({ SetupOwnerId: this.org.userId, DevelopmentMode__c: developmentMode });
-			}
+		let [pageConfig, userConfig] = await Promise.all(promises);
 
-			return Bluebird.props({ pageConfigPromise, userConfigPromise });
-
-		});
-
+		return { pageConfig, userConfig };
 	}
 
-	deployNewPage(page) {
+	async deployNewPage(page: Page) : Promise<string> {
 
 		debug(`deployNewPage() page => %o`, page);
 
-		return this.validateAuthentication().then(() => {
+		let createdResources = [];
 
-			return this.conn.query(`Select Id From ApexPage Where Name = '${page.name}'`);
+		try {
 
-		}).then(queryResult => {
+			await this.validateAuthentication();
+			let pageQueryResult = await this.conn.query(`Select Id From ApexPage Where Name = '${page.name}'`);
 
-			if(queryResult.totalSize > 0) {
-				return Promise.resolve(queryResult.records[0].Id);
+			if(pageQueryResult.totalSize > 0) {
+				return Promise.resolve(pageQueryResult.records[0].Id);
 			}
 
-			let newApexPage;
-			let createdResources = [];
+			await this.processCustomSettings();
 
-			return this.processCustomSettings().then(() => {
+			let options = templates.controller(page.name);
 			
-				let options = templates.controller(page.name);
-
-				return this.createSobject('ApexClass', {
-					Name: options.name,
-					Body: options.body
-				});
-
-			}).then(controllerClass => {
-
-				debug(`controllerClass => %o`, controllerClass);
-
-				createdResources.push({ order: 4, type: 'ApexClass', id: controllerClass.id, isTooling: false });
-
-				let bitmap = fs.readFileSync(path.join(__dirname, 'static/placeholder.txt'));
-				let staticResourceContent = new Buffer(bitmap).toString('base64');
-				let staticResourceOptions = this.createStaticResourceOptions(page, 'text/plain', staticResourceContent);
-				
-				return this.createSobject('StaticResource', staticResourceOptions, true);
-
-			}).then(async staticResource => {
-
-				debug(`staticResource => %o`, staticResource);
-
-				createdResources.push({ order: 2, type: 'StaticResource', id: staticResource.id, isTooling: true });
-
-				let plugin = await getPluginModule(page.pluginName);
-				let html = await plugin.getHtmlMarkup(page);
-				let markup = templates.apexPageWrapper(page, html);
-
-				return this.createSobject('ApexPage', {
-					Name: page.name,
-					MasterLabel: page.name,
-					Markup: markup
-				});
-
-			}).then(apexPage => {
-
-				debug(`apexPage => %o`, apexPage);
-
-				createdResources.push({ order: 1, type: 'ApexPage', id: apexPage.id, isTooling: false });
-
-				newApexPage = apexPage;
-
-				let options = templates.controllerTest(page.name);
-				
-				return this.createSobject('ApexClass', {
-					Name: options.name,
-					Body: options.body
-				});
-
-			}).then(controllerTestClass => {
-
-				debug(`controllerTestClass => %o`, controllerTestClass);
-
-				createdResources.push({ order: 3, type: 'ApexClass', id: controllerTestClass.id, isTooling: false });
-
-				return Promise.resolve(newApexPage.id);
-
-			}).catch(err => {
-
-				let cleanupMap = _.sortBy(createdResources, ['order']);
-
-				return Bluebird.each(cleanupMap, (resource) => {
-					
-					debug(`deleting ${resource.type} => ${resource.id}`);
-
-					let connection = resource.isTooling ? this.conn.tooling : this.conn;
-					return connection.sobject(resource.type).delete(resource.id);
-
-				}).then(deleteResult => {
-
-					debug(`deleteResult => %o`, deleteResult);
-					return Promise.reject(err);
-
-				});
-
+			let controllerClass = await this.createSobject('ApexClass', {
+				Name: options.name,
+				Body: options.body
 			});
-		});
+
+			debug(`controllerClass => %o`, controllerClass);
+			
+			createdResources.push({ order: 4, type: 'ApexClass', id: controllerClass.id, isTooling: false });
+
+			let bitmap = fs.readFileSync(path.join(__dirname, 'static/placeholder.txt'));
+			let staticResourceContent = new Buffer(bitmap).toString('base64');
+			let staticResourceOptions = this.createStaticResourceOptions(page, 'text/plain', staticResourceContent);
+			
+			let staticResource = await this.createSobject('StaticResource', staticResourceOptions, true);
+
+			debug(`staticResource => %o`, staticResource);
+			
+			createdResources.push({ order: 2, type: 'StaticResource', id: staticResource.id, isTooling: true });
+
+			let plugin = await getPluginModule(page.pluginName);
+			let html = await plugin.getHtmlMarkup(page);
+			let markup = templates.apexPageWrapper(page, html);
+
+			let apexPage = await this.createSobject('ApexPage', {
+				Name: page.name,
+				MasterLabel: page.name,
+				Markup: markup
+			});
+			
+			debug(`apexPage => %o`, apexPage);
+			
+			createdResources.push({ order: 1, type: 'ApexPage', id: apexPage.id, isTooling: false });
+
+			let controllerTestOptions = templates.controllerTest(page.name);
+			
+			let controllerTestClass = await this.createSobject('ApexClass', {
+				Name: controllerTestOptions.name,
+				Body: controllerTestOptions.body
+			});
+
+			debug(`controllerTestClass => %o`, controllerTestClass);
+			
+			createdResources.push({ order: 3, type: 'ApexClass', id: controllerTestClass.id, isTooling: false });
+
+			return apexPage.id;
+
+		} catch (error) {
+
+			createdResources = _.sortBy(createdResources, ['order']);
+
+			for(let resource of createdResources) {
+				let connection = resource.isTooling ? this.conn.tooling : this.conn;
+				let deleteResult = await connection.sobject(resource.type).delete(resource.id);
+				debug(`Delete result for ${resource.type} ${resource.id} => %o`, deleteResult);
+			}
+
+			// _.sortBy(createdResources, ['order']).forEach(async resource => {
+			// 	let connection = resource.isTooling ? this.conn.tooling : this.conn;
+			// 	await connection.sobject(resource.type).delete(resource.id);
+			// });
+
+			throw error;
+		}
+
+		// return this.validateAuthentication().then(() => {
+
+		// 	return this.conn.query(`Select Id From ApexPage Where Name = '${page.name}'`);
+
+		// }).then(queryResult => {
+
+		// 	if(queryResult.totalSize > 0) {
+		// 		return Promise.resolve(queryResult.records[0].Id);
+		// 	}
+
+		// 	let newApexPage;
+		// 	let createdResources = [];
+
+		// 	return this.processCustomSettings().then(() => {
+			
+		// 		let options = templates.controller(page.name);
+
+		// 		return this.createSobject('ApexClass', {
+		// 			Name: options.name,
+		// 			Body: options.body
+		// 		});
+
+		// 	}).then(controllerClass => {
+
+		// 		debug(`controllerClass => %o`, controllerClass);
+
+		// 		createdResources.push({ order: 4, type: 'ApexClass', id: controllerClass.id, isTooling: false });
+
+		// 		let bitmap = fs.readFileSync(path.join(__dirname, 'static/placeholder.txt'));
+		// 		let staticResourceContent = new Buffer(bitmap).toString('base64');
+		// 		let staticResourceOptions = this.createStaticResourceOptions(page, 'text/plain', staticResourceContent);
+				
+		// 		return this.createSobject('StaticResource', staticResourceOptions, true);
+
+		// 	}).then(async staticResource => {
+
+		// 		debug(`staticResource => %o`, staticResource);
+
+		// 		createdResources.push({ order: 2, type: 'StaticResource', id: staticResource.id, isTooling: true });
+
+		// 		let plugin = await getPluginModule(page.pluginName);
+		// 		let html = await plugin.getHtmlMarkup(page);
+		// 		let markup = templates.apexPageWrapper(page, html);
+
+		// 		return this.createSobject('ApexPage', {
+		// 			Name: page.name,
+		// 			MasterLabel: page.name,
+		// 			Markup: markup
+		// 		});
+
+		// 	}).then(apexPage => {
+
+		// 		debug(`apexPage => %o`, apexPage);
+
+		// 		createdResources.push({ order: 1, type: 'ApexPage', id: apexPage.id, isTooling: false });
+
+		// 		newApexPage = apexPage;
+
+		// 		let options = templates.controllerTest(page.name);
+				
+		// 		return this.createSobject('ApexClass', {
+		// 			Name: options.name,
+		// 			Body: options.body
+		// 		});
+
+		// 	}).then(controllerTestClass => {
+
+		// 		debug(`controllerTestClass => %o`, controllerTestClass);
+
+		// 		createdResources.push({ order: 3, type: 'ApexClass', id: controllerTestClass.id, isTooling: false });
+
+		// 		return Promise.resolve(newApexPage.id);
+
+		// 	}).catch(error => {
+
+		// 		_.sortBy(createdResources, ['order']).forEach(async resource => {
+		// 			let connection = resource.isTooling ? this.conn.tooling : this.conn;
+		// 			await connection.sobject(resource.type).delete(resource.id);
+		// 		});
+
+		// 		throw error;
+		// 	});
+		// });
 	}
 
-	processCustomSettings() {
+	async processCustomSettings() : Promise<any> {
 		
-		return this.validateAuthentication().then(() => {
-			
-			return Bluebird.props({
-				hasSimpleVfPages: this.hasSobject(templates.simpleVfPages.fullName),
-				hasSimpleVfUsers: this.hasSobject(templates.simpleVfUsers.fullName)
-			});
+		await this.validateAuthentication();
+
+		let [hasSimpleVfPages, hasSimpleVfUsers] = await Promise.all([
+			this.hasSobject(templates.simpleVfPages.fullName),
+			this.hasSobject(templates.simpleVfUsers.fullName)
+		]);
+
+		let toBeCreatedMeta = [];
 		
-		}).then(hash => {
+		if(!hasSimpleVfPages) toBeCreatedMeta.push(templates.simpleVfPages);
+		if(!hasSimpleVfUsers) toBeCreatedMeta.push(templates.simpleVfUsers);
 
-			let toBeCreatedMeta = [];
+		if(toBeCreatedMeta.length === 0) return Promise.resolve();
 
-			if(!hash.hasSimpleVfPages) { 
-				toBeCreatedMeta.push(templates.simpleVfPages); 
-			}
-
-			if(!hash.hasSimpleVfUsers) { 
-				toBeCreatedMeta.push(templates.simpleVfUsers); 
-			}
-
-			if(toBeCreatedMeta.length === 0) {
-				return Promise.resolve();
-			}
-
-			return this.conn.metadata.create('CustomObject', toBeCreatedMeta);
-
-		});
+		return this.conn.metadata.create('CustomObject', toBeCreatedMeta);
 	}
 
 	hasSobject(sobjectName: string) : Promise<boolean> {
 		return this.conn.sobject(sobjectName).describe().then(() => true).catch(() => false);
 	}
 
-	validateAuthentication() {
+	async validateAuthentication() : Promise<void> {
 
-		return this.conn.identity().then(() => Promise.resolve()).catch(err => {
+		try {
 			
-			if(err.errorCode !== 'INVALID_SESSION_ID') {
-				return Promise.reject(err);
-			}
+			await this.conn.identity();
 
-			let securityToken = '';
+		} catch (error) {
 
-			debug(`validateAuthentication() this.org.securityToken => ${this.org.securityToken}`);
+			if(error.errorCode !== 'INVALID_SESSION_ID') throw error;
 
-			return Bluebird.props({
-				encryptionKey: db.getEncryptionKey(),
-				securityToken: typeof this.org.securityToken !== 'string' ? cli.getSecurityToken('No security token set for this org, you may enter that now') : this.org.securityToken
-			}).then(hash => {
+			//For backwards compatability when we were not prompting the user to enter a security token.
+			let securityTokenPromise = typeof this.org.securityToken !== 'string' ? cli.getSecurityToken('No security token set for this org, you may enter that now') : this.org.securityToken;
 
-				securityToken = hash.securityToken;
-				let password = cryptoJS.AES.decrypt(this.org.password, hash.encryptionKey).toString(cryptoJS.enc.Utf8) + securityToken;
+			let [encryptionKey, securityToken] = await Promise.all([ db.getEncryptionKey(), securityTokenPromise ]);
 
-				return Bluebird.props({
-					org: db.getWithDefault(this.org._id),
-					userInfo: this.conn.login(this.org.username, password)
-				});
+			let password = cryptoJS.AES.decrypt(this.org.password, encryptionKey).toString(cryptoJS.enc.Utf8) + securityToken;
 
-			}).then(hash => {
+			let [org, userInfo] = await Promise.all([
+				<Org>db.getWithDefault(this.org._id),
+				this.conn.login(this.org.username, password)
+			]);
 
-				debug(`validateAuthentication re-login userInfo => %o`, hash.userInfo);
+			//Set the new accessToken on the org object so that it can be saved into the database.
+			org.accessToken = this.conn.accessToken;
+			org.securityToken = securityToken;
+			
+			//Reset the accessToken stored in this class instance.
+			this.org = org;
 
-				//Set the new accessToken on the org object so that it can be saved into the database.
-				hash.org.accessToken = this.conn.accessToken;
-				hash.org.securityToken = securityToken;
-				
-				//Reset the accessToken stored in this class instance.
-				this.org = hash.org;
-
-				return db.update(hash.org);
-
-			});
-		});
+			return db.update(org);
+		}
 	}
 
-	saveStaticResource(page, zipFilePath) {
+	saveStaticResource(page: Page, zipFilePath) {
 
 		debug(`saveStaticResource() page => %o`, page);
 
@@ -298,7 +344,7 @@ class Salesforce {
 
 	}
 
-	createStaticResourceOptions(page: any, contentType: string, body: string) : StaticResourceOptions {
+	createStaticResourceOptions(page: Page, contentType: string, body: string) : StaticResourceOptions {
 
 		let options = new StaticResourceOptions();
 		options.cacheControl = 'Private';
