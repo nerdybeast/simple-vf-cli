@@ -173,7 +173,7 @@ async function askOutputDir() {
 
 			let validatedInput = validateInput(userInput, 'output directory must contain a value');
 			if(typeof validatedInput === 'string') errors.push(validatedInput);
-			if(!path.isAbsolute(userInput)) errors.push(`path must be entered as an absolute value`);
+			if(!path.isAbsolute(userInput)) errors.push(`path must be entered as an absolute value (example: c:/path/to/output/directory)`);
 
 			return errors.length === 0 || `Error: ${errors.join(', ')}.`;
 		}
@@ -215,10 +215,7 @@ async function _resolveOutputDirectory(outputDir?: string) {
 		} catch (error) {
 			
 			console.log();
-
-			let message = new Message();
-			message.warn(`The output directory ${chalk.cyan(outputDir)} doesn\'t exist yet!`);
-
+			Message.warn(`The output directory ${chalk.cyan(outputDir)} doesn\'t exist yet!`);
 			console.log();
 
 			let confirmOutputDir = await ask({

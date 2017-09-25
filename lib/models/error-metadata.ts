@@ -1,6 +1,6 @@
 import SystemInformation from './system-information';
 
-class ErrorMetadata {
+export class ErrorMetadata {
 	methodName: string;
 	parameters: any;
 	user: string;
@@ -17,5 +17,3 @@ class ErrorMetadata {
 		this.user = this.systemInformation.hostname;
 	}
 }
-
-export default ErrorMetadata;

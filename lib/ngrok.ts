@@ -1,5 +1,5 @@
-import rollbar from './rollbar';
-import ErrorMetadata from './models/error-metadata';
+import errorReporter from './error-reporter';
+import { ErrorMetadata } from './models/error-metadata';
 
 const ngrok = require('ngrok');
 const debug = require('debug')('svf:info ngrok');
@@ -50,7 +50,7 @@ class Ngrok {
 				connectionError: errorDetails.connectionError
 			});
 
-			return rollbar.exceptionAsync(errorDetails.error, meta);
+			return errorReporter.exceptionAsync(errorDetails.error, meta);
 		});
 	}
 	

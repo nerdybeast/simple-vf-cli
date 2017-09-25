@@ -5,8 +5,8 @@ const _ = require('lodash');
 const debug = require('debug')('svf:info flow');
 
 import db from './db';
-import { default as rollbar } from './rollbar';
-import ErrorMetadata from './models/error-metadata';
+import errorReporter from './error-reporter';
+import { ErrorMetadata } from './models/error-metadata';
 import { Org } from './models/org';
 import { Page } from './models/page';
 import * as cli from './cli';
@@ -28,9 +28,7 @@ export async function auth() : Promise<Org> {
 		return await processAuth(orgName);
 
 	} catch (error) {
-		rollbar.exception(error, meta, async () => {
-			m.catchError(error);
-		});
+		handleError(error, meta);
 	}
 
 }
@@ -52,7 +50,7 @@ export async function newPage(org?: Org) {
 		return await _deployNewPage(org, page);
 
 	} catch(error) {
-		rollbar.exception(error, meta, () => m.catchError(error));
+		handleError(error, meta);
 	}
 
 }
@@ -74,7 +72,7 @@ export async function serve() : Promise<void> {
 		await _startTunnel(org, page);
 
 	} catch(error) {
-		rollbar.exception(error, meta, () => m.catchError(error));
+		handleError(error, meta);
 	}
 
 }
@@ -97,8 +95,8 @@ export async function deleteDatabase() : Promise<void> {
 
 		m.success('Delete successful');
 
-	} catch(e) {
-		rollbar.exception(e, meta, () => m.catchError(e));
+	} catch(error) {
+		handleError(error, meta);
 	}
 }
 
@@ -112,8 +110,8 @@ export async function deployApp() : Promise<void> {
 		let page = await cli.getPageSelectionByOrg(org, false);
 		let deployResult = await deploy(org, page);
 
-	} catch(e) {
-		rollbar.exception(e, meta, () => m.catchError(e));
+	} catch(error) {
+		handleError(error, meta);
 	}
 }
 
@@ -161,8 +159,12 @@ export async function list() {
 		});
 
 	} catch (error) {
-		rollbar.exception(error, meta, () => m.catchError(error));
+		handleError(error, meta);
 	}
+}
+
+function handleError(error: any, meta: ErrorMetadata) : void {
+	errorReporter.exception(error, meta, () => m.catchError(error));
 }
 
 /**
@@ -319,11 +321,10 @@ async function _validateIfOrgIsAuthed(orgName: string) : Promise<Org> {
 		let org = await db.getWithDefault(orgName);
 		
 		if(org) return org;
-	
-		//let selectedOrgName = await cli.getOrgName(orgName);
+
 		return processAuth(orgName);
 
 	} catch (error) {
-		await rollbar.exceptionAsync(error, meta);
+		await errorReporter.exceptionAsync(error, meta);
 	}
 }

@@ -17,6 +17,7 @@ export default async function processAuth(orgName: string, org?: Org) : Promise<
 		let savedOrg = org || (await db.getWithDefault(orgName));
 		let credentials = await cli.getOrgCredentials(savedOrg);
 		
+		//Eagerly set these properties so that we can provide the user with retry effect when their login fails.
 		newOrg._id = orgName;
 		newOrg.name = orgName;
 		newOrg.loginUrl = credentials.orgType;
@@ -43,7 +44,7 @@ export default async function processAuth(orgName: string, org?: Org) : Promise<
 		
 		debug(`processAuth error => %o`, error);
 		
-		if(error.message.includes('INVALID_LOGIN')) {
+		if(error.message.includes('INVALID_LOGIN') || error.message.includes('LOGIN_MUST_USE_SECURITY_TOKEN')) {
 			message.catchError(error);
 			return await processAuth(orgName, newOrg);
 		}

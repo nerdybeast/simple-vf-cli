@@ -3,8 +3,8 @@ const PouchDB = require('pouchdb');
 const randomString = require('randomstring');
 const fs = require('fs-extra');
 const debug = require('debug')('svf:info db');
-const rollbar = require('./rollbar');
-
+import errorReporter from './error-reporter';
+import { ErrorMetadata } from './models/error-metadata';
 import { appSettingsLocation } from './paths';
 import { Org } from './models/org';
 import { Page } from './models/page';
@@ -28,10 +28,8 @@ PouchDB.plugin({
 				let ex = new Error(err.message);
 				ex = convertRollbarError(ex, err);
 				
-				return rollbar.exceptionAsync(ex, {
-					methodName: 'getWithDefault',
-					params: { id }
-				});
+				let meta = new ErrorMetadata('getWithDefault', { id });
+				return errorReporter.exceptionAsync(ex, meta);
 			}
 
 			return Promise.resolve(defaultValue);
@@ -63,10 +61,8 @@ PouchDB.plugin({
 			//Strip out just these properties to send to rollbar, we don't want to send sensitive user info.
 			let { type, _id } = doc;
 
-			return rollbar.exceptionAsync(ex, {
-				methodName: 'update',
-				params: { type, _id }
-			});
+			let meta = new ErrorMetadata('update', { type, _id });
+			return errorReporter.exceptionAsync(ex, meta);
 
 		});
 
@@ -98,7 +94,8 @@ PouchDB.plugin({
 			let ex = new Error(err.message);
 			ex = convertRollbarError(ex, err);
 
-			return rollbar.exceptionAsync(ex, { methodName: 'getEncryptionKey' });
+			let meta = new ErrorMetadata('getEncryptionKey');
+			return errorReporter.exceptionAsync(ex, meta);
 		});
 
 	},
@@ -149,15 +146,15 @@ try {
 		let ex = new Error(err.message);
 		ex = convertRollbarError(ex, err);
 
-		rollbar.exception(ex, {}, () => {
+		errorReporter.exception(ex, new ErrorMetadata('pouchdb doc change error'), () => {
 			debug(`db change err => %o`, err);
 		});
 	});
 
 } catch(e) {
 
-	rollbar.exception(e, {}, () => {});
-
+	let meta = new ErrorMetadata('db.ts file', { appSettingsLocation });
+	errorReporter.exception(e, meta, () => {});
 }
 
 function convertRollbarError(ex, rollbarError) {
