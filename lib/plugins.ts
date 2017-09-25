@@ -8,10 +8,8 @@ import { projectRoot, appSettingsLocation } from './paths';
 import { ModuleDetails } from './interfaces/module-details';
 import { Plugin } from './interfaces/plugin';
 
-const debug = require('debug')('svf:info plugin');
+const debug = require('debug')('svf:info plugins');
 let _pluginDirectory = `${appSettingsLocation}/plugins`;
-
-debug('fs-extra import => %o', fs.pathExists);
 
 export async function determineBuildSystem() {
 
@@ -24,19 +22,19 @@ export async function determineBuildSystem() {
 
 	await ensureAppSettingsPackageJsonExists();
 
-	let pluginPromises = await Promise.all([ 
+	let [dbPlugins, remotePlugins, installedPlugins] = await Promise.all([ 
 		getPluginFromDb(pluginName),
 		npmSearch('@svf/plugin'),
 		getInstalledPlugins()
 	]);
 
-	let dbPlugin = pluginPromises[0].find(x => x.name === pluginName);
+	let dbPlugin = dbPlugins.find(x => x.name === pluginName);
 	debug(`determineBuildSystem() dbPlugin => %o`, dbPlugin);
 
-	let remotePlugin = pluginPromises[1].find(x => x.name === pluginName);
+	let remotePlugin = remotePlugins.find(x => x.name === pluginName);
 	debug(`determineBuildSystem() remotePlugin => %o`, remotePlugin);
 
-	let installedPlugin = pluginPromises[2].find(x => x.name === pluginName);
+	let installedPlugin = installedPlugins.find(x => x.name === pluginName);
 	debug(`determineBuildSystem() installedPlugin => %o`, installedPlugin);
 
 	if(!pluginIsCurrent(dbPlugin, installedPlugin, remotePlugin)) {
@@ -50,7 +48,7 @@ export async function determineBuildSystem() {
 		message.success('Plugin updated successfully');
 	}
 
-	message.success('Verification complete');
+	message.success('Plugin verification complete');
 
 	return Promise.resolve(pluginName);
 }
@@ -107,7 +105,7 @@ function installPlugins(plugins: ModuleDetails | ModuleDetails[]) {
 			debug(`installPlugins code => ${code}`);
 
 			return resolve();
-		}); 
+		});
 
 		child.on('error', (error) => {
 			return reject(error);

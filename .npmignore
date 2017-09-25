@@ -57,6 +57,9 @@ typings
 # Temp directory for build output
 temp
 
+# Jest code coverage output directory
+coverage
+
 #############################################################################################################
 # Everything above this line needs to match the .gitignore file exactly that way we do not install unneeded
 # dev dependencies on the user's machine when they install this package globally.

@@ -35,10 +35,18 @@ export class Message {
 		this._message.stop();
 	}
 
+	static success(msg: string) : void {
+		(new Message()).success(msg);
+	}
+
 	success(msg: string) : void {
 		if(!this._isAlive) return;
 		this._message.succeed(msg);
 		this._kill();
+	}
+
+	static info(msg: string) : void {
+		(new Message()).info(msg);
 	}
 
 	info(msg: string) : void {
@@ -46,9 +54,17 @@ export class Message {
 		this._kill();
 	}
 
+	static warn(msg: string) : void {
+		(new Message()).warn(msg);
+	}
+
 	warn(msg: string) : void {
 		this._message.warn(msg);
 		this._kill();
+	}
+
+	static fail(msg: string) : void {
+		(new Message()).fail(msg);
 	}
 
 	fail(msg: string) : void {

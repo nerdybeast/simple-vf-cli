@@ -1,4 +1,4 @@
-import message from '../lib/message';
+import message , { Message } from '../lib/message';
 
 describe('Testing "../lib/message" module', function() {
 
@@ -30,5 +30,22 @@ describe('Testing "../lib/message" module', function() {
 		message.start(newText);
 		
 		expect(message._message.text).toBe(newText);
+	});
+
+	test('Calling static Message class methods should just work', function() {
+
+		let exception;
+
+		try {
+			Message.info('test');
+			Message.success('test');
+			Message.warn('test');
+			Message.fail('test');
+		} catch (error) {
+			exception = error;
+		}
+
+		expect(exception).toBe(undefined);
+
 	});
 });
