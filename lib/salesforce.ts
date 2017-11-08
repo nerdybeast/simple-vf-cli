@@ -14,7 +14,7 @@ import StaticResourceOptions from './models/static-resource-options';
 import * as templates from './templates';
 import { getPluginModule } from './plugins'
 
-class Salesforce {
+export class Salesforce {
 	
 	private org: Org;
 	private conn: any;
@@ -90,8 +90,7 @@ class Salesforce {
 			
 			createdResources.push({ order: 4, type: 'ApexClass', id: controllerClass.id, isTooling: false });
 
-			let bitmap = fs.readFileSync(path.join(__dirname, 'static/placeholder.txt'));
-			let staticResourceContent = new Buffer(bitmap).toString('base64');
+			let staticResourceContent = Buffer.from('placeholder').toString('base64');
 			let staticResourceOptions = this.createStaticResourceOptions(page, 'text/plain', staticResourceContent);
 			
 			let staticResource = await this.createSobject('StaticResource', staticResourceOptions, true);
@@ -278,5 +277,3 @@ class Salesforce {
 		}
 	}
 }
-
-export default Salesforce;

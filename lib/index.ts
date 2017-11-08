@@ -3,8 +3,8 @@
 const commander = require('commander');
 const path = require('path');
 
-import * as flow from './lib/flow';
-import { projectRoot } from './lib/paths';
+import * as flow from './flow';
+import { projectRoot } from './paths';
 
 const packageJson = require(path.join(projectRoot, 'package.json'));
 

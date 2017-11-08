@@ -18,6 +18,8 @@ class Watcher {
 
 		const plugin = await getPluginModule(this.page.pluginName);
 
+		await plugin.prepareForDevelopment(this.org, this.page);
+
 		this._watcher = watch(this.page.outputDir);
 		debug(`Watcher started for path: ${chalk.cyan(this.page.outputDir)}`);
 

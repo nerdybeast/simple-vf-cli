@@ -41,7 +41,7 @@ class Ngrok {
 				return resolve(url);
 			});
 
-		}).catch(errorDetails => {
+		}).catch(async (errorDetails) => {
 			
 			this.disconnect();
 			
@@ -50,7 +50,8 @@ class Ngrok {
 				connectionError: errorDetails.connectionError
 			});
 
-			return errorReporter.exceptionAsync(errorDetails.error, meta);
+			await errorReporter.error(errorDetails.error, meta);
+			throw errorDetails.error;
 		});
 	}
 	

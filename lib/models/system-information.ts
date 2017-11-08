@@ -1,6 +1,6 @@
 import os = require('os');
 
-class SystemInformation {
+export class SystemInformation {
 	node: string;
 	v8: string;
 	rss: number;
@@ -29,5 +29,3 @@ class SystemInformation {
 		this.hostname = os.hostname();
 	}
 }
-
-export default SystemInformation;

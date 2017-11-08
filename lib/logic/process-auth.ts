@@ -2,10 +2,12 @@ const jsforce = require('jsforce');
 const debug = require('debug')('svf:info process-auth');
 const chalk = require('chalk');
 const cryptoJs = require('crypto-js');
+
 import { Message } from '../message';
 import { Org } from '../models/org';
 import db from '../db';
 import * as cli from '../cli';
+import reporter from '../error-reporter';
 
 export default async function processAuth(orgName: string, org?: Org) : Promise<Org> {
 
@@ -45,6 +47,7 @@ export default async function processAuth(orgName: string, org?: Org) : Promise<
 		debug(`processAuth error => %o`, error);
 		
 		if(error.message.includes('INVALID_LOGIN') || error.message.includes('LOGIN_MUST_USE_SECURITY_TOKEN')) {
+			reporter.warning(error.message, { orgName }, error);
 			message.catchError(error);
 			return await processAuth(orgName, newOrg);
 		}

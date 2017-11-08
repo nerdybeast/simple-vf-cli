@@ -11,7 +11,7 @@ import { Org } from './models/org';
 import { Page } from './models/page';
 import * as cli from './cli';
 import m from './message';
-import Salesforce from './salesforce';
+import { Salesforce } from './salesforce';
 import Ngrok from './ngrok';
 import Watcher from './watcher';
 import deploy from './deploy';
@@ -163,8 +163,9 @@ export async function list() {
 	}
 }
 
-function handleError(error: any, meta: ErrorMetadata) : void {
-	errorReporter.exception(error, meta, () => m.catchError(error));
+async function handleError(error: any, meta: ErrorMetadata) : Promise<void> {
+	await errorReporter.error(error, meta);
+	m.catchError(error);
 }
 
 /**
@@ -241,7 +242,7 @@ async function _startTunnel(org, page) {
 	debug(`_startTunnel() => org:`, org);
 	debug(`_startTunnel() => page:`, page);
 	
-	m.start('Starting ngrok tunnel...')
+	m.start('Starting ngrok tunnel...');
 
 	let sf = new Salesforce(org);
 	let watcher = new Watcher(org, page);
@@ -258,7 +259,8 @@ async function _startTunnel(org, page) {
 	
 		await _togglePageSettings(org, page, url, true);
 	
-		watcher.start();
+		await watcher.start();
+
 		let answer = (await cli.manageTunnel()) || '';
 	
 		let disconnectPromises: any[] = [
@@ -325,6 +327,7 @@ async function _validateIfOrgIsAuthed(orgName: string) : Promise<Org> {
 		return processAuth(orgName);
 
 	} catch (error) {
-		await errorReporter.exceptionAsync(error, meta);
+		await errorReporter.error(error, meta);
+		throw error;
 	}
 }

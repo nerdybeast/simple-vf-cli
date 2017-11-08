@@ -19,7 +19,7 @@ PouchDB.plugin({
 			return Promise.resolve(defaultValue);
 		}
 
-		return this.get(id).catch(err => {
+		return this.get(id).catch(async (err) => {
 
 			debug(`getWithDefault() error => %o`, err);
 
@@ -29,7 +29,9 @@ PouchDB.plugin({
 				ex = convertRollbarError(ex, err);
 				
 				let meta = new ErrorMetadata('getWithDefault', { id });
-				return errorReporter.exceptionAsync(ex, meta);
+				await errorReporter.error(ex, meta);
+
+				throw err;
 			}
 
 			return Promise.resolve(defaultValue);
@@ -51,7 +53,7 @@ PouchDB.plugin({
 			debug(`updateResult on doc ${doc._id} => %o`, updateResult);
 			return this.getWithDefault(doc._id);
 
-		}).catch(err => {
+		}).catch(async (err) => {
 
 			debug(`updateResult error on doc ${doc._id} => %o`, err);
 			
@@ -62,8 +64,9 @@ PouchDB.plugin({
 			let { type, _id } = doc;
 
 			let meta = new ErrorMetadata('update', { type, _id });
-			return errorReporter.exceptionAsync(ex, meta);
+			await errorReporter.error(ex, meta);
 
+			throw err;
 		});
 
 	},
@@ -89,13 +92,15 @@ PouchDB.plugin({
 				return Promise.resolve(newDoc.encryptionKey);
 			});
 
-		}).catch(err => {
+		}).catch(async (err) => {
 			
 			let ex = new Error(err.message);
 			ex = convertRollbarError(ex, err);
 
 			let meta = new ErrorMetadata('getEncryptionKey');
-			return errorReporter.exceptionAsync(ex, meta);
+			await errorReporter.error(ex, meta);
+			
+			throw err;
 		});
 
 	},
@@ -141,20 +146,20 @@ try {
 
 	changes.on('change', (change) => debug(`db change result => %o`, change));
 
-	changes.on('error', (err) => {
-		
+	changes.on('error', async (err) => {
+
+		debug(`db change err => %o`, err);
+
 		let ex = new Error(err.message);
 		ex = convertRollbarError(ex, err);
 
-		errorReporter.exception(ex, new ErrorMetadata('pouchdb doc change error'), () => {
-			debug(`db change err => %o`, err);
-		});
+		await errorReporter.warning('pouchdb doc change error', null, ex);
 	});
 
-} catch(e) {
+} catch(ex) {
 
 	let meta = new ErrorMetadata('db.ts file', { appSettingsLocation });
-	errorReporter.exception(e, meta, () => {});
+	errorReporter.critical(ex, meta, 'Error initializing PouchDB');
 }
 
 function convertRollbarError(ex, rollbarError) {

@@ -9,6 +9,7 @@ import db from './db';
 import m, { Message } from './message';
 import { Org } from './models/org';
 import { Page } from './models/page';
+import { Config } from './models/config';
 import { PageConfig } from './interfaces/page-config';
 
 function validateInput(userInput: string, errorMessage: string = 'Please enter a value') : boolean|string {
@@ -240,6 +241,22 @@ async function _resolveOutputDirectory(outputDir?: string) {
 
 	let chosenOutputDir = await askOutputDir();
 	return _resolveOutputDirectory(chosenOutputDir);
+}
+
+export async function askToAllowErrorTracking(config: Config) : Promise<boolean> {
+
+	//If the user answered true last install to allow error tracking, don't ask them again.
+	if(config.ALLOW_ERROR_TRACKING) { return config.ALLOW_ERROR_TRACKING; }
+
+	return ask({
+		type: 'list',
+		name: 'allowErrorTracking',
+		message: `Do you want to allow simple-vf to collect errors and anonymous usage statistics? This can be changed any time using the ${chalk.bold.cyan('\`svf config\`')} command.`,
+		choices: [
+			{ name: 'yes (recommended)', value: true },
+			{ name: 'no', value: false }
+		]
+	});
 }
 
 export async function getOrgCredentials(org?: Org) : Promise<any> {

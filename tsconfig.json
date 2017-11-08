@@ -17,9 +17,5 @@
 		"newLine": "LF"
 	},
 
-	"include": [
-		"lib/**/*", 
-		"index.ts", 
-		"install.ts"
-	]
+	"include": ["lib/**/*"]
 }

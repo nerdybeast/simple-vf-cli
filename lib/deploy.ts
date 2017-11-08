@@ -4,9 +4,8 @@ const fs = require('fs-extra');
 const chalk = require('chalk');
 const debug = require('debug')('svf:info deploy');
 
-import Salesforce from './salesforce';
+import { Salesforce } from './salesforce';
 import db from './db';
-import SvfError from './models/svf-error';
 import { Org } from './models/org';
 import { Page } from './models/page';
 
@@ -17,8 +16,7 @@ function _createZip(page: Page) : Promise<string> {
 	try {
 		fs.statSync(page.outputDir);
 	} catch(ex) {
-		let error = new SvfError(`The output directory (${chalk.cyan(page.outputDir)}) defined for the page ${chalk.cyan(page.name)} does not exist, make sure your project has been built and that your build output directory exists.`);
-		error.isFatal = false;
+		let error = new Error(`The output directory (${chalk.cyan(page.outputDir)}) defined for the page ${chalk.cyan(page.name)} does not exist, make sure your project has been built and that your build output directory exists.`);
 		return Promise.reject(error);
 	}
 

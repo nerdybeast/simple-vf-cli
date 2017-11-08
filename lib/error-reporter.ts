@@ -3,50 +3,63 @@ const debug = require('debug')('svf:info error-reporter');
 const path = require('path');
 
 import { ErrorMetadata } from './models/error-metadata';
-import * as paths from './paths';
+import { appSettingsLocation } from './paths';
+import { Config } from './models/config';
+import { SystemInformation } from './models/system-information';
 
 require('dotenv').config({
-	path: path.join(paths.appSettingsLocation, '.env')
+	path: path.join(appSettingsLocation, '.env')
 });
 
+debug(`process.env.ROLLBAR_AUTH_TOKEN => %o`, process.env.ROLLBAR_AUTH_TOKEN);
 let accessToken = process.env.ROLLBAR_AUTH_TOKEN;
+
+debug(`process.env.ALLOW_ERROR_TRACKING => %o`, process.env.ALLOW_ERROR_TRACKING);
 let enabled = process.env.ALLOW_ERROR_TRACKING === 'true';
+
+let systemInformation = new SystemInformation();
 
 class ErrorReporter {
 
 	rollbar: any;
 
 	constructor() {
-		debug(`process.env.ALLOW_ERROR_TRACKING => %o`, process.env.ALLOW_ERROR_TRACKING);
-		this.rollbar = new Rollbar({ accessToken, enabled });
-	}
-
-	exception(e, metadata: ErrorMetadata, cb) {
 		
-		if(!cb || typeof cb !== 'function') throw new Error(`Cannot call Rollbar.exception() without providing a callback function.`);
-
-		//Some errors are not really fatal and if the user base for this project grows we will not want to log everything to rollbar.
-		if(process.env.USE_IS_FATAL_FILTER && !e.isFatal) {
-			cb(e);
-		}
-		
-		this.rollbar.error(e, metadata, (rollbarError) => {
-			
-			if(rollbarError) {
-				if(enabled) {
-					debug(`Error calling rollbar api => %o`, rollbarError);
-				} else {
-					debug('Error tracking disabled, skipped reporting to Rollbar.');
-				}
+		this.rollbar = new Rollbar({
+			accessToken, 
+			enabled,
+			payload: {
+				systemInformation
 			}
-
-			return cb(e);
 		});
 	}
 
-	exceptionAsync(e, metadata: ErrorMetadata) {
+	info(message: string, data: any) {
+		return this.sendMessage('info', message, data, null);
+	}
+
+	debug(message: string, data: any) {
+		return this.sendMessage('debug', message, data, null);
+	}
+
+	warning(message: string, data: any, ex: any) {
+		return this.sendMessage('warning', message, data, ex);
+	}
+
+	error(ex, meta: ErrorMetadata, message: string = 'An exception has occurred') {
+		return this.sendMessage('error', message, meta, ex);
+	}
+
+	critical(ex, meta: ErrorMetadata, message: string = 'A fatal exception has occurred') {
+		return this.sendMessage('critical', message, meta, ex);
+	}
+
+	private sendMessage(type: string, message: string, data: any, ex: any) {
 		return new Promise((resolve, reject) => {
-			this.exception(e, metadata, (processedError) => reject(processedError));
+			this.rollbar[type](message, ex, data, (rbError, rbResult) => {
+				if(rbError) return reject(rbError);
+				return resolve(rbResult);
+			});
 		});
 	}
 }
