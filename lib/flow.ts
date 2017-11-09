@@ -242,15 +242,20 @@ async function _startTunnel(org, page) {
 	debug(`_startTunnel() => org:`, org);
 	debug(`_startTunnel() => page:`, page);
 	
-	m.start('Starting ngrok tunnel...');
-
 	let sf = new Salesforce(org);
 	let watcher = new Watcher(org, page);
 	let ngrok = new Ngrok(page.port);
 	
 	try {
 
-		let [url, customSettings] = await Promise.all([ngrok.connect(), sf.processCustomSettings()]);
+		await watcher.start();
+
+		m.start('Starting ngrok tunnel...');
+
+		let [url, customSettings] = await Promise.all([
+			ngrok.connect(), 
+			sf.processCustomSettings()
+		]);
 		
 		m.success(`Tunnel started at: ${chalk.cyan(url)}`);
 	
@@ -258,8 +263,6 @@ async function _startTunnel(org, page) {
 		org = await db.getWithDefault(org._id);
 	
 		await _togglePageSettings(org, page, url, true);
-	
-		await watcher.start();
 
 		let answer = (await cli.manageTunnel()) || '';
 	
