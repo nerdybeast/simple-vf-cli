@@ -1,15 +1,18 @@
+import { getPluginModule } from './plugins';
+import { Debug } from './utilities/debug';
+
 const watch = require('node-watch');
 const chalk = require('chalk');
-const debug = require('debug')('svf:info watcher');
+const debug = new Debug('svf', 'watcher');
 
-import { getPluginModule } from './plugins';
+
 
 class Watcher {
 
 	private _watcher: any = null;
 
 	constructor(private org, private page) {
-		debug(`Watcher page => %o`, page);
+		debug.verbose(`watcher page`, page);
 	}
 
 	async start() : Promise<void> {
@@ -21,15 +24,15 @@ class Watcher {
 		await plugin.prepareForDevelopment(this.org, this.page);
 
 		this._watcher = watch(this.page.outputDir);
-		debug(`Watcher started for path: ${chalk.cyan(this.page.outputDir)}`);
+		debug.info(`Watcher started for path: ${chalk.cyan(this.page.outputDir)}`);
 
 		this._watcher.on('change', (event, file) => {
-			debug(`File Change: ${file}`);
+			debug.verbose(`file change: ${file}`);
 			plugin.onFileChange(this.org, this.page, file);
 		});
 
 		this._watcher.on('error', (err) => {
-			debug(`File Watch Error: %o`, err);
+			debug.error(`file watch error`, err);
 		});
 	}
 
@@ -38,7 +41,7 @@ class Watcher {
 		if(this._watcher === null) return;
 
 		this._watcher.close();
-		debug(`Watcher successfully stopped`);
+		debug.info(`Watcher successfully stopped`);
 	}
 }
 

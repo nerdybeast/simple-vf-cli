@@ -1,10 +1,12 @@
-const path = require('path');
-const debug = require('debug')('svf:info project-root');
+import { Debug } from '../utilities/debug';
 
-debug(`dirname => ${__dirname}`);
+const path = require('path');
+const debug = new Debug('svf', 'project-root');
+
+debug.verbose(`dirname => ${__dirname}`);
 
 let projectRoot: string = path.join(__dirname, '../../');
 
-debug(`project root full path => ${projectRoot}`);
+debug.info(`project root full path => ${projectRoot}`);
 
 export default projectRoot;

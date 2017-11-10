@@ -1,8 +1,9 @@
 import errorReporter from './error-reporter';
 import { ErrorMetadata } from './models/error-metadata';
+import { Debug } from './utilities/debug';
 
 const ngrok = require('ngrok');
-const debug = require('debug')('svf:info ngrok');
+const debug = new Debug('svf', 'ngrok');
 
 class Ngrok {
 
@@ -30,7 +31,7 @@ class Ngrok {
 					 *   }
 					 * }
 					 */
-					 debug('connection error from ngrok => %o', connectionError);
+					 debug.error('connection error from ngrok', connectionError);
 
 					let error = new Error(connectionError.msg);
 					error.name = 'ngrok_error';

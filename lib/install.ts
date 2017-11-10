@@ -1,13 +1,14 @@
-const path = require('path');
-const fs = require('fs-extra');
-const inquirer = require('inquirer');
-const chalk = require('chalk');
-const debug = require('debug')('svf:info install');
-
 import { appSettingsLocation } from './paths';
 import db from './db';
 import { Config, getRollbarAuthToken } from './models/config';
 import { askToAllowErrorTracking } from './cli';
+import { Debug } from './utilities/debug';
+
+const path = require('path');
+const fs = require('fs-extra');
+const inquirer = require('inquirer');
+const chalk = require('chalk');
+const debug = new Debug('svf', 'install');
 
 fs.ensureDirSync(appSettingsLocation);
 let envPath = path.join(appSettingsLocation, '.env');
@@ -19,8 +20,8 @@ async function setup() {
 		getRollbarAuthToken()
 	]);
 
-	debug(`config returned from db => %o`, config);
-	debug(`rollbar auth token => %o`, rollbarAuthToken);
+	debug.verbose(`config returned from db`, config);
+	debug.verbose(`rollbar auth token`, rollbarAuthToken);
 
 	config.ALLOW_ERROR_TRACKING = await askToAllowErrorTracking(config);
 	config.ROLLBAR_AUTH_TOKEN = rollbarAuthToken;
@@ -41,7 +42,7 @@ async function updateConfig(config: Config) : Promise<Config> {
 		_id: 'config'
 	});
 
-	debug(`config before db update => %o`, config);
+	debug.verbose(`config before db update`, config);
 
 	let updateResult = await db.put(mergedConfig);
 	return db.getWithDefault('config');

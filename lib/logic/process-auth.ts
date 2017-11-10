@@ -1,13 +1,14 @@
-const jsforce = require('jsforce');
-const debug = require('debug')('svf:info process-auth');
-const chalk = require('chalk');
-const cryptoJs = require('crypto-js');
-
 import { Message } from '../message';
 import { Org } from '../models/org';
 import db from '../db';
 import * as cli from '../cli';
 import reporter from '../error-reporter';
+import { Debug } from '../utilities/debug';
+
+const jsforce = require('jsforce');
+const chalk = require('chalk');
+const cryptoJs = require('crypto-js');
+const debug = new Debug('svf', 'process-auth');
 
 export default async function processAuth(orgName: string, org?: Org) : Promise<Org> {
 
@@ -44,7 +45,7 @@ export default async function processAuth(orgName: string, org?: Org) : Promise<
 
 	} catch (error) {
 		
-		debug(`processAuth error => %o`, error);
+		debug.error(`processAuth error`, error);
 		
 		if(error.message.includes('INVALID_LOGIN') || error.message.includes('LOGIN_MUST_USE_SECURITY_TOKEN')) {
 			reporter.warning(error.message, { orgName }, error);
@@ -72,7 +73,7 @@ async function runLoginPromises(credentials, orgName) {
 			db.getEncryptionKey()
 		]);
 
-		debug(`jsforce.login() loginResult => %o`, loginResult);
+		debug.info(`jsforce.login() loginResult`, loginResult);
 		message.success(`Successfully authenticated to: ${chalk.cyan(conn.instanceUrl)}`);
 
 		let { instanceUrl, accessToken } = conn;
@@ -80,7 +81,7 @@ async function runLoginPromises(credentials, orgName) {
 
 	} catch (error) {
 		
-		debug(`runLoginPromises() error => %o`, error);
+		debug.error(`runLoginPromises() error`, error);
 		message.fail(`Authentication to ${chalk.cyan(orgName)} failed.`);
 
 		throw error;

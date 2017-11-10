@@ -1,9 +1,3 @@
-const jsforce = require('jsforce');
-const chalk = require('chalk');
-const cryptoJs = require('crypto-js');
-const _ = require('lodash');
-const debug = require('debug')('svf:info flow');
-
 import db from './db';
 import errorReporter from './error-reporter';
 import { ErrorMetadata } from './models/error-metadata';
@@ -17,6 +11,13 @@ import Watcher from './watcher';
 import deploy from './deploy';
 import { determineBuildSystem, getPluginModule } from './plugins';
 import processAuth from './logic/process-auth';
+import { Debug } from './utilities/debug';
+
+const jsforce = require('jsforce');
+const chalk = require('chalk');
+const cryptoJs = require('crypto-js');
+const _ = require('lodash');
+const debug = new Debug('svf', 'flow');
 
 export async function auth() : Promise<Org> {
 	
@@ -91,7 +92,6 @@ export async function deleteDatabase() : Promise<void> {
 		}
 
 		let destroyResult = await db.destroy();
-		debug(`Database destroy result => %o`, destroyResult);
 
 		m.success('Delete successful');
 
@@ -173,8 +173,8 @@ async function handleError(error: any, meta: ErrorMetadata) : Promise<void> {
  */
 async function _resolveOrgName(orgName: string, userMessage?: string, allowOther?: boolean) : Promise<string> {
 	
-	debug(`_resolveOrgName() => orgName:`, orgName);
-	debug(`_resolveOrgName() => allowOther:`, allowOther);
+	debug.verbose(`_resolveOrgName() orgName`, orgName);
+	debug.verbose(`_resolveOrgName() allowOther`, allowOther);
 
 	if(orgName) return orgName;
 
@@ -187,8 +187,8 @@ async function _resolveOrgName(orgName: string, userMessage?: string, allowOther
 
 async function _resolvePageObject(pluginName: string, org: Org) : Promise<Page> {
 	
-	debug(`_resolvePageObject() => pluginName:`, pluginName);
-	debug(`_resolvePageObject() => org:`, org);
+	debug.verbose(`_resolvePageObject() pluginName`, pluginName);
+	debug.verbose(`_resolvePageObject() org`, org);
 
 	let plugin = await getPluginModule(pluginName);
 	let pageConfig = await plugin.pageConfig();
@@ -201,18 +201,17 @@ async function _resolvePageObject(pluginName: string, org: Org) : Promise<Page> 
 	page.pluginName = pluginName;
 
 	let postResult = await db.post(page);
-	debug(`_resolvePageObject() => postResult:`, postResult);
+	debug.info(`new page save result`, postResult);
 
 	let result = await db.getWithDefault(postResult.id);
-	debug(`_resolvePageObject() => result:`, postResult);
 
 	return result;
 }
 
 async function _deployNewPage(org: Org, page: Page) {
 
-	debug(`_deployNewPage() => org:`, org);
-	debug(`_deployNewPage() => page:`, page);
+	debug.verbose(`_deployNewPage() org`, org);
+	debug.verbose(`_deployNewPage() page`, page);
 
 	m.start(`Deploying new page ${chalk.cyan(page.name)}...`);
 
@@ -230,7 +229,7 @@ async function _deployNewPage(org: Org, page: Page) {
 
 	} catch (error) {
 
-		debug(`_deployNewPage err => %o`, error);
+		debug.error(`failed to deploy page "${page.name}"`, error);
 		
 		m.fail(`Failed to create page!`);
 		throw error;
@@ -239,8 +238,8 @@ async function _deployNewPage(org: Org, page: Page) {
 
 async function _startTunnel(org, page) {
 
-	debug(`_startTunnel() => org:`, org);
-	debug(`_startTunnel() => page:`, page);
+	debug.verbose(`_startTunnel() org`, org);
+	debug.verbose(`_startTunnel() page`, page);
 	
 	let sf = new Salesforce(org);
 	let watcher = new Watcher(org, page);
@@ -292,10 +291,10 @@ async function _startTunnel(org, page) {
 async function _togglePageSettings(org: Org, page: Page, url: string, developmentMode: boolean) : Promise<void> {
 	
 	let METHOD_NAME = '_togglePageSettings()';
-	debug(`${METHOD_NAME} => page: %o`, page);
-	debug(`${METHOD_NAME} => org: %o`, org);
-	debug(`${METHOD_NAME} => url: %o`, url);
-	debug(`${METHOD_NAME} => developmentMode: %o`, developmentMode);
+	debug.verbose(`${METHOD_NAME} page`, page);
+	debug.verbose(`${METHOD_NAME} org`, org);
+	debug.verbose(`${METHOD_NAME} url`, url);
+	debug.verbose(`${METHOD_NAME} developmentMode`, developmentMode);
 
 	m.start(`${developmentMode ? 'Enabling' : 'Disabling'} development mode in ${chalk.cyan(org.name)}...`);
 
@@ -318,9 +317,8 @@ async function _togglePageSettings(org: Org, page: Page, url: string, developmen
 
 async function _validateIfOrgIsAuthed(orgName: string) : Promise<Org> {
 
-	debug(`_validateIfOrgIsAuthed() => orgName:`, orgName);
-	let meta = new ErrorMetadata('_validateIfOrgIsAuthed', { orgName });
-
+	debug.verbose(`_validateIfOrgIsAuthed() orgName`, orgName);
+	
 	try {
 	
 		let org = await db.getWithDefault(orgName);
@@ -330,6 +328,7 @@ async function _validateIfOrgIsAuthed(orgName: string) : Promise<Org> {
 		return processAuth(orgName);
 
 	} catch (error) {
+		let meta = new ErrorMetadata('_validateIfOrgIsAuthed', { orgName });
 		await errorReporter.error(error, meta);
 		throw error;
 	}

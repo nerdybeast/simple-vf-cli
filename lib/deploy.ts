@@ -1,14 +1,14 @@
-const path = require('path');
-const archiver = require('archiver');
-const fs = require('fs-extra');
-const chalk = require('chalk');
-const debug = require('debug')('svf:info deploy');
-
 import { Salesforce } from './salesforce';
 import db from './db';
 import { Org } from './models/org';
 import { Page } from './models/page';
+import { Debug } from './utilities/debug';
 
+const path = require('path');
+const archiver = require('archiver');
+const fs = require('fs-extra');
+const chalk = require('chalk');
+const debug = new Debug('svf', 'deploy');
 const TEMP_DIR_PATH = path.join(__dirname, '../temp');
 
 function _createZip(page: Page) : Promise<string> {
@@ -23,7 +23,7 @@ function _createZip(page: Page) : Promise<string> {
 	return new Promise((resolve, reject) => {
 
 		let zipFilePath = <string>path.join(TEMP_DIR_PATH, `${page.name}.zip`);
-		debug(`zipFilePath for the zip folder that will be uploaded => ${zipFilePath}`);
+		debug.info(`zipFilePath for the zip folder that will be uploaded`, zipFilePath);
 
 		let output = fs.createWriteStream(zipFilePath);
 		let archive = archiver('zip');
@@ -62,7 +62,7 @@ export default async function(org: Org, page: Page) {
 	let [deleteTempDir, updateResult] = await Promise.all(promises);
 	let result = { deleteTempDir, updateResult };
 
-	debug(`deploy() result => %o`, result);
+	debug.info(`deploy() result`, result);
 
 	return result;
 }

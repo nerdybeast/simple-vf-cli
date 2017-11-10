@@ -1,10 +1,3 @@
-const fs = require('fs');
-const path = require('path');
-const jsforce = require('jsforce');
-const cryptoJS = require('crypto-js');
-const _ = require('lodash');
-const debug = require('debug')('svf:info salesforce');
-
 import * as cli from './cli';
 import db from './db';
 import m from './message';
@@ -13,6 +6,15 @@ import { Page } from './models/page';
 import StaticResourceOptions from './models/static-resource-options';
 import * as templates from './templates';
 import { getPluginModule } from './plugins'
+import { Debug } from './utilities/debug';
+import { version } from 'punycode';
+
+const fs = require('fs');
+const path = require('path');
+const jsforce = require('jsforce');
+const cryptoJS = require('crypto-js');
+const _ = require('lodash');
+const debug = new Debug('svf', 'salesforce');
 
 export class Salesforce {
 	
@@ -29,7 +31,7 @@ export class Salesforce {
 			accessToken: org.accessToken
 		});
 
-		debug(`Salesforce class instantiated with => %o`, org);
+		debug.verbose(`Salesforce class instantiated with`, org);
 	}
 
 	async updateSetting(pageName: string, url: string, developmentMode) {
@@ -64,7 +66,7 @@ export class Salesforce {
 
 	async deployNewPage(page: Page) : Promise<string> {
 
-		debug(`deployNewPage() page => %o`, page);
+		debug.verbose(`deployNewPage() page`, page);
 
 		let createdResources = [];
 
@@ -86,7 +88,7 @@ export class Salesforce {
 				Body: options.body
 			});
 
-			debug(`controllerClass => %o`, controllerClass);
+			debug.verbose(`controllerClass`, controllerClass);
 			
 			createdResources.push({ order: 4, type: 'ApexClass', id: controllerClass.id, isTooling: false });
 
@@ -95,7 +97,7 @@ export class Salesforce {
 			
 			let staticResource = await this.createSobject('StaticResource', staticResourceOptions, true);
 
-			debug(`staticResource => %o`, staticResource);
+			debug.verbose(`staticResource`, staticResource);
 			
 			createdResources.push({ order: 2, type: 'StaticResource', id: staticResource.id, isTooling: true });
 
@@ -109,7 +111,7 @@ export class Salesforce {
 				Markup: markup
 			});
 			
-			debug(`apexPage => %o`, apexPage);
+			debug.verbose(`apexPage`, apexPage);
 			
 			createdResources.push({ order: 1, type: 'ApexPage', id: apexPage.id, isTooling: false });
 
@@ -120,7 +122,7 @@ export class Salesforce {
 				Body: controllerTestOptions.body
 			});
 
-			debug(`controllerTestClass => %o`, controllerTestClass);
+			debug.verbose(`controllerTestClass`, controllerTestClass);
 			
 			createdResources.push({ order: 3, type: 'ApexClass', id: controllerTestClass.id, isTooling: false });
 
@@ -133,7 +135,7 @@ export class Salesforce {
 			for(let resource of createdResources) {
 				let connection = resource.isTooling ? this.conn.tooling : this.conn;
 				let deleteResult = await connection.sobject(resource.type).delete(resource.id);
-				debug(`Delete result for ${resource.type} ${resource.id} => %o`, deleteResult);
+				debug.verbose(`Delete result for ${resource.type} ${resource.id}`, deleteResult);
 			}
 
 			throw error;
@@ -199,7 +201,7 @@ export class Salesforce {
 
 	async saveStaticResource(page: Page, zipFilePath) {
 
-		debug(`saveStaticResource() page => %o`, page);
+		debug.verbose(`saveStaticResource() page`, page);
 
 		m.start('Deploying static resource to Salesforce...');
 
@@ -219,7 +221,7 @@ export class Salesforce {
 
 			let sobject = this.conn.tooling.sobject('StaticResource');
 			let staticResourceResult = await (('Id' in options) ? sobject.update(options) : sobject.create(options));
-			debug(`save static resource result => %o`, staticResourceResult);
+			debug.verbose(`save static resource result`, staticResourceResult);
 
 			m.success('Static resource successfully deployed.');
 			return staticResourceResult.id;
@@ -232,7 +234,7 @@ export class Salesforce {
 
 	async getSobjectByName(sobject, name) {
 		let queryResult = await this.conn.query(`Select Id, Name From ${sobject} Where Name = '${name}'`);
-		debug(`getSobjectByName() queryResult => %o`, queryResult);
+		debug.verbose(`getSobjectByName() queryResult`, queryResult);
 		return queryResult.totalSize > 0 ? queryResult.records[0] : null;
 	}
 
@@ -247,7 +249,7 @@ export class Salesforce {
 			options.Id = page.staticResourceId;
 		}
 
-		debug(`static resource creation options => %o`, options);
+		debug.verbose(`static resource creation options`, options);
 
 		//Set this body property AFTER the debug statement otherwise, the console output will run for days.
 		options.body = body;
@@ -261,13 +263,13 @@ export class Salesforce {
 			
 			let api = isTooling ? this.conn.tooling : this.conn;
 			let sobjectResult = await api.sobject(sobjectName).create(options);
-			debug(`create sobject result => %o`, sobjectResult);
+			debug.info(`create sobject result`, sobjectResult);
 
 			return sobjectResult;
 
 		} catch (error) {
 			
-			debug(`create sobject error => %o`, error);
+			debug.error(`create sobject "${sobjectName}" error`, error);
 
 			if(error.errorCode === 'DUPLICATE_VALUE' && error.message.includes('<unknown>')) {
 				error.message = `Duplicate value found: An Sobject of type "${sobjectName}" already exists with the name "${options.Name}"`;

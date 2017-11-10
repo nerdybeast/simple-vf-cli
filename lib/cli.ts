@@ -1,16 +1,17 @@
-const inquirer = require('inquirer');
-const _ = require('lodash');
-const chalk = require('chalk');
-const fs = require('fs-extra');
-const debug = require('debug')('svf:info cli');
-const path = require('path');
-
 import db from './db';
 import m, { Message } from './message';
 import { Org } from './models/org';
 import { Page } from './models/page';
 import { Config } from './models/config';
 import { PageConfig } from './interfaces/page-config';
+import { Debug } from './utilities/debug';
+
+const inquirer = require('inquirer');
+const _ = require('lodash');
+const chalk = require('chalk');
+const fs = require('fs-extra');
+const path = require('path');
+const debug = new Debug('svf', 'cli');
 
 function validateInput(userInput: string, errorMessage: string = 'Please enter a value') : boolean|string {
 	userInput = (userInput || '').trim();
@@ -21,7 +22,7 @@ function validateInput(userInput: string, errorMessage: string = 'Please enter a
 async function ask(config) {
 
 	let answers = await _base(config);
-	debug(`${config.name} question raw answer => %o`, answers);
+	debug.verbose(`${config.name} question raw answer`, answers);
 
 	return answers[config.name];
 }
@@ -261,7 +262,7 @@ export async function askToAllowErrorTracking(config: Config) : Promise<boolean>
 
 export async function getOrgCredentials(org?: Org) : Promise<any> {
 	
-	debug(`getOrgCredentials() => org: %o`, org);
+	debug.verbose(`getOrgCredentials() org`, org);
 
 	//Initialize this parameter to an object to help avoid null reference errors.
 	org = org || new Org();
@@ -272,7 +273,7 @@ export async function getOrgCredentials(org?: Org) : Promise<any> {
 	let securityToken = await askSecurityToken(undefined, org.securityToken)
 
 	let credentials = { orgType, username, password, securityToken };
-	debug(`getOrgCredentials() => %o`, credentials);
+	debug.verbose(`getOrgCredentials() return value`, credentials);
 
 	return credentials;
 }
@@ -310,7 +311,7 @@ export async function orgSelection(userMessage: string = 'Choose an org:', inclu
 		});
 
 	} catch (error) {
-		debug(`error with org selection list => %o`, error);
+		debug.error(`error with org selection list `, error);
 		throw error;
 	}
 }
@@ -346,7 +347,7 @@ export async function getPageSelectionByOrg(org: Org, allowOther: boolean = true
 		});
 
 	} catch (error) {
-		debug(`get page by org error => %o`, error);
+		debug.error(`get page by org error`, error);
 		throw error;
 	}
 }
