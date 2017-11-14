@@ -3,19 +3,19 @@ import { appSettingsLocation } from './paths';
 import { Config } from './models/config';
 import { SystemInformation } from './models/system-information';
 import { Debug } from './utilities/debug';
+import { join } from 'path';
 
 const Rollbar = require('rollbar');
-const path = require('path');
 const debug = new Debug('svf', 'error-reporter');
 
 require('dotenv').config({
-	path: path.join(appSettingsLocation, '.env')
+	path: join(appSettingsLocation, '.env')
 });
 
-debug.info(`process.env.ROLLBAR_AUTH_TOKEN => %o`, process.env.ROLLBAR_AUTH_TOKEN);
+debug.info(`process.env.ROLLBAR_AUTH_TOKEN`, process.env.ROLLBAR_AUTH_TOKEN);
 let accessToken = process.env.ROLLBAR_AUTH_TOKEN;
 
-debug.info(`process.env.ALLOW_ERROR_TRACKING => %o`, process.env.ALLOW_ERROR_TRACKING);
+debug.info(`process.env.ALLOW_ERROR_TRACKING`, process.env.ALLOW_ERROR_TRACKING);
 let enabled = process.env.ALLOW_ERROR_TRACKING === 'true';
 
 let systemInformation = new SystemInformation();

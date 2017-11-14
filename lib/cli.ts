@@ -5,12 +5,12 @@ import { Page } from './models/page';
 import { Config } from './models/config';
 import { PageConfig } from './interfaces/page-config';
 import { Debug } from './utilities/debug';
+import * as fs from 'fs-extra';
+import * as path from 'path';
 
 const inquirer = require('inquirer');
 const _ = require('lodash');
 const chalk = require('chalk');
-const fs = require('fs-extra');
-const path = require('path');
 const debug = new Debug('svf', 'cli');
 
 function validateInput(userInput: string, errorMessage: string = 'Please enter a value') : boolean|string {
@@ -21,7 +21,7 @@ function validateInput(userInput: string, errorMessage: string = 'Please enter a
 
 async function ask(config) {
 
-	let answers = await _base(config);
+	let answers = await inquirer.prompt(config);
 	debug.verbose(`${config.name} question raw answer`, answers);
 
 	return answers[config.name];
@@ -183,11 +183,6 @@ async function askOutputDir() {
 
 	let outputDir = await ask(config);
 	return path.normalize(outputDir);
-}
-
-function _base(questions) {
-	if(!Array.isArray(questions)) questions = [questions];
-	return inquirer.prompt(questions);
 }
 
 /**

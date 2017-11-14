@@ -76,7 +76,6 @@ test
 
 # Typescript files used only during development
 /lib
-*.ts
 
 # Various project configuration
 .gitattributes
@@ -84,3 +83,6 @@ test
 gulpfile.js
 *.md
 tsconfig.json
+
+# Source maps
+./dist/**/*.map

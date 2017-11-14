@@ -4,11 +4,11 @@ import { appSettingsLocation } from './paths';
 import { Org } from './models/org';
 import { Page } from './models/page';
 import { Debug } from './utilities/debug';
+import * as fs from 'fs-extra';
+import { join } from 'path';
 
-const path = require('path');
 const PouchDB = require('pouchdb');
 const randomString = require('randomstring');
-const fs = require('fs-extra');
 const debug = new Debug('svf', 'db');
 
 PouchDB.plugin(require('pouchdb-find'));
@@ -151,7 +151,7 @@ let db;
 try {
 
 	fs.ensureDirSync(appSettingsLocation);
-	let fullDbPath = path.join(appSettingsLocation, '.simple-vf-db');
+	let fullDbPath = join(appSettingsLocation, '.simple-vf-db');
 	debug.info(`database will be created at`, fullDbPath);
 
 	db = new PouchDB(fullDbPath);

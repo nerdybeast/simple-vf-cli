@@ -3,13 +3,13 @@ import db from './db';
 import { Org } from './models/org';
 import { Page } from './models/page';
 import { Debug } from './utilities/debug';
+import * as fs from 'fs-extra';
+import { join } from 'path';
 
-const path = require('path');
 const archiver = require('archiver');
-const fs = require('fs-extra');
 const chalk = require('chalk');
 const debug = new Debug('svf', 'deploy');
-const TEMP_DIR_PATH = path.join(__dirname, '../temp');
+const TEMP_DIR_PATH = join(__dirname, '../temp');
 
 function _createZip(page: Page) : Promise<string> {
 
@@ -22,7 +22,7 @@ function _createZip(page: Page) : Promise<string> {
 
 	return new Promise((resolve, reject) => {
 
-		let zipFilePath = <string>path.join(TEMP_DIR_PATH, `${page.name}.zip`);
+		let zipFilePath = join(TEMP_DIR_PATH, `${page.name}.zip`);
 		debug.info(`zipFilePath for the zip folder that will be uploaded`, zipFilePath);
 
 		let output = fs.createWriteStream(zipFilePath);

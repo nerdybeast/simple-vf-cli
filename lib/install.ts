@@ -3,15 +3,15 @@ import db from './db';
 import { Config, getRollbarAuthToken } from './models/config';
 import { askToAllowErrorTracking } from './cli';
 import { Debug } from './utilities/debug';
+import * as fs from 'fs-extra';
+import { join } from 'path';
 
-const path = require('path');
-const fs = require('fs-extra');
 const inquirer = require('inquirer');
 const chalk = require('chalk');
 const debug = new Debug('svf', 'install');
 
 fs.ensureDirSync(appSettingsLocation);
-let envPath = path.join(appSettingsLocation, '.env');
+let envPath = join(appSettingsLocation, '.env');
 
 async function setup() {
 
@@ -33,7 +33,7 @@ async function setup() {
 		`ROLLBAR_AUTH_TOKEN=${config.ROLLBAR_AUTH_TOKEN}`
 	];
 	
-	await fs.writeFile(envPath, fileContents.join('\n'), 'utf8');
+	await fs.writeFile(envPath, fileContents.join('\n'));
 }
 
 async function updateConfig(config: Config) : Promise<Config> {

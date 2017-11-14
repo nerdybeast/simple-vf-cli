@@ -164,6 +164,7 @@ export async function list() {
 }
 
 async function handleError(error: any, meta: ErrorMetadata) : Promise<void> {
+	debug.error('Error', error);
 	await errorReporter.error(error, meta);
 	m.catchError(error);
 }

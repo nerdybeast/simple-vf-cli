@@ -10,7 +10,6 @@ import { Debug } from './utilities/debug';
 import { version } from 'punycode';
 
 const fs = require('fs');
-const path = require('path');
 const jsforce = require('jsforce');
 const cryptoJS = require('crypto-js');
 const _ = require('lodash');

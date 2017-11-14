@@ -1,5 +1,6 @@
+import { join } from 'path';
+
 const os = require('os');
-const path = require('path');
 
 let homeDir = os.homedir();
 let platform = os.platform();
@@ -19,4 +20,4 @@ switch(platform) {
 		break;
 }
 
-export default path.join(homeDir, dbPath);
+export default join(homeDir, dbPath);
