@@ -1,4 +1,4 @@
-import * as cli from './cli';
+import { askForSecurityToken } from './cli';
 import db from './db';
 import m from './message';
 import { Org } from './models/org';
@@ -176,7 +176,7 @@ export class Salesforce {
 			if(error.errorCode !== 'INVALID_SESSION_ID') throw error;
 
 			//For backwards compatability when we were not prompting the user to enter a security token.
-			let securityTokenPromise = typeof this.org.securityToken !== 'string' ? cli.getSecurityToken('No security token set for this org, you may enter that now') : this.org.securityToken;
+			let securityTokenPromise = typeof this.org.securityToken !== 'string' ? askForSecurityToken('No security token set for this org, you may enter that now') : this.org.securityToken;
 
 			let [encryptionKey, securityToken] = await Promise.all([ db.getEncryptionKey(), securityTokenPromise ]);
 

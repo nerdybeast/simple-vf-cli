@@ -1,7 +1,7 @@
 import * as fs from 'fs-extra';
 import { join } from 'path';
 import * as spawn from 'cross-spawn';
-import * as cli from './cli';
+import { askForBuildSystem } from './cli';
 import db from './db';
 import message from './message';
 import { projectRoot, appSettingsLocation } from './paths';
@@ -10,11 +10,11 @@ import { Plugin } from './interfaces/plugin';
 import { Debug } from './utilities/debug';
 
 const debug = new Debug('svf', 'plugin');
-let _pluginDirectory = `${appSettingsLocation}/plugins`;
+let _pluginDirectory = `${appSettingsLocation()}/plugins`;
 
 export async function determineBuildSystem() {
 
-	let pluginName = await cli.getBuildSystem();
+	let pluginName = await askForBuildSystem();
 
 	//Will be true if the user chose the "other" option when choosing which build system they are using.
 	if(pluginName === 'default') return Promise.resolve(pluginName);

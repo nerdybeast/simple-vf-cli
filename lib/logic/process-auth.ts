@@ -1,7 +1,7 @@
 import { Message } from '../message';
 import { Org } from '../models/org';
 import db from '../db';
-import * as cli from '../cli';
+import { askOrgCredentials } from '../cli';
 import reporter from '../error-reporter';
 import { Debug } from '../utilities/debug';
 
@@ -18,7 +18,7 @@ export default async function processAuth(orgName: string, org?: Org) : Promise<
 	try {
 		
 		let savedOrg = org || (await db.getWithDefault(orgName));
-		let credentials = await cli.getOrgCredentials(savedOrg);
+		let credentials = await askOrgCredentials(savedOrg);
 		
 		//Eagerly set these properties so that we can provide the user with retry effect when their login fails.
 		newOrg._id = orgName;

@@ -9,9 +9,10 @@ import { join } from 'path';
 const inquirer = require('inquirer');
 const chalk = require('chalk');
 const debug = new Debug('svf', 'install');
+const appSettingsDir = appSettingsLocation();
 
-fs.ensureDirSync(appSettingsLocation);
-let envPath = join(appSettingsLocation, '.env');
+fs.ensureDirSync(appSettingsDir);
+let envPath = join(appSettingsDir, '.env');
 
 async function setup() {
 

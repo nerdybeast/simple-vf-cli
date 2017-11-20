@@ -19,7 +19,7 @@ gulp.task('scripts', function() {
 		.pipe(gulp.dest('dist'));
 });
 
-gulp.task('watch', function() {
+gulp.task('watch', ['scripts'], function() {
 	gulp.watch(['./lib/**/*.ts'], ['scripts']);
 });
 

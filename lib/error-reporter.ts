@@ -9,7 +9,7 @@ const Rollbar = require('rollbar');
 const debug = new Debug('svf', 'error-reporter');
 
 require('dotenv').config({
-	path: join(appSettingsLocation, '.env')
+	path: join(appSettingsLocation(), '.env')
 });
 
 debug.info(`process.env.ROLLBAR_AUTH_TOKEN`, process.env.ROLLBAR_AUTH_TOKEN);

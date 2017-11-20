@@ -1,6 +1,6 @@
 import { Plugin } from '../interfaces/plugin';
 import { PageConfig } from '../interfaces/page-config';
-import { getPageDetails } from '../cli';
+import { askForPageConfig } from '../cli';
 import { Org } from '../models/org';
 import { Page } from '../models/page';
 import { defaultHtml } from '../templates';
@@ -8,7 +8,7 @@ import { defaultHtml } from '../templates';
 class DefaultPlugin implements Plugin {
 
 	pageConfig(pageName?: string) : Promise<PageConfig> {
-		return getPageDetails(pageName);
+		return askForPageConfig(pageName);
 	}
 
 	onFileChange(org: Org, page, file) { }

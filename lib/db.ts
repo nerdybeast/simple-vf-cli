@@ -150,8 +150,8 @@ let db;
 
 try {
 
-	fs.ensureDirSync(appSettingsLocation);
-	let fullDbPath = join(appSettingsLocation, '.simple-vf-db');
+	fs.ensureDirSync(appSettingsLocation());
+	let fullDbPath = join(appSettingsLocation(), '.simple-vf-db');
 	debug.info(`database will be created at`, fullDbPath);
 
 	db = new PouchDB(fullDbPath);

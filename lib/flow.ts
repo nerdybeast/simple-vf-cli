@@ -3,7 +3,7 @@ import errorReporter from './error-reporter';
 import { ErrorMetadata } from './models/error-metadata';
 import { Org } from './models/org';
 import { Page } from './models/page';
-import * as cli from './cli';
+import { askOrgSelection, askPageSelection, askToDeleteDatabase, askForOrgName, askToStopTunnel } from './cli';
 import m from './message';
 import { Salesforce } from './salesforce';
 import Ngrok from './ngrok';
@@ -64,7 +64,7 @@ export async function serve() : Promise<void> {
 
 		let orgName = await _resolveOrgName(undefined, undefined, true);
 		let org = await _validateIfOrgIsAuthed(orgName);
-		let page = await cli.getPageSelectionByOrg(org, true);
+		let page = await askPageSelection(org, true);
 
 		if(!page) {
 			page = await newPage(org);
@@ -84,7 +84,7 @@ export async function deleteDatabase() : Promise<void> {
 
 	try {
 
-		let shouldDelete = await cli.deleteDatabase();
+		let shouldDelete = await askToDeleteDatabase();
 
 		if(!shouldDelete) {
 			m.success('Delete cancelled');
@@ -106,8 +106,8 @@ export async function deployApp() : Promise<void> {
 
 	try {
 
-		let org = await cli.orgSelection('Choose which org to deploy to', false);
-		let page = await cli.getPageSelectionByOrg(org, false);
+		let org = await askOrgSelection('Choose which org to deploy to', false);
+		let page = await askPageSelection(org, false);
 		let deployResult = await deploy(org, page);
 
 	} catch(error) {
@@ -179,11 +179,11 @@ async function _resolveOrgName(orgName: string, userMessage?: string, allowOther
 
 	if(orgName) return orgName;
 
-	let selectedOrg = await cli.orgSelection(userMessage, allowOther);
+	let selectedOrg = await askOrgSelection(userMessage, allowOther);
 
 	if(selectedOrg) return selectedOrg.name;
 
-	return await cli.getOrgName();
+	return await askForOrgName();
 }
 
 async function _resolvePageObject(pluginName: string, org: Org) : Promise<Page> {
@@ -264,7 +264,7 @@ async function _startTunnel(org, page) {
 	
 		await _togglePageSettings(org, page, url, true);
 
-		let answer = (await cli.manageTunnel()) || '';
+		let answer = (await askToStopTunnel()) || '';
 	
 		let disconnectPromises: any[] = [
 			ngrok.disconnectAsync(),

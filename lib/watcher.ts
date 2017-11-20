@@ -5,8 +5,6 @@ const watch = require('node-watch');
 const chalk = require('chalk');
 const debug = new Debug('svf', 'watcher');
 
-
-
 class Watcher {
 
 	private _watcher: any = null;
