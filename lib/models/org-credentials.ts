@@ -1,5 +1,5 @@
 export class OrgCredentials {
-	orgType: string;
+	loginUrl: string;
 	username: string;
 	password: string;
 	securityToken: string;

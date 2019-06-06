@@ -1,4 +1,6 @@
-export class Page {
+import { IDatabaseRecord } from './IDatabaseRecord';
+
+export class Page implements IDatabaseRecord {
 	type: string = 'page';
 	_id: string;
 	name: string;

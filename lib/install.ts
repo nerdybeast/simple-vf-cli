@@ -49,4 +49,4 @@ async function updateConfig(config: Config) : Promise<Config> {
 	return db.getWithDefault('config');
 }
 
-setup();
+//setup();

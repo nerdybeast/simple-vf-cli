@@ -1,8 +1,7 @@
-import db from '../db';
 import { Org } from '../models/org';
 import askOrgSelection from './individual-questions/org-selection';
-import * as _ from 'lodash';
 import { Debug } from '../utilities/debug';
+import { OrgRepository } from '../JsonDB';
 
 const debug = new Debug('svf', 'get-org-selection');
 
@@ -12,17 +11,18 @@ const debug = new Debug('svf', 'get-org-selection');
 export default async function(userMessage: string = 'Choose an org:', includeNewChoice: boolean = true) : Promise<Org> {
 	
 	try {
-		
-		let orgs = <Org[]>(await db.getAllOrgs());
+
+		const orgRepository = new OrgRepository();
+		let orgs = await orgRepository.findAll();
 
 		if(orgs.length === 0) return null;
 
-		let choices = _.map(orgs, (org) => {
+		const choices = orgs.map(org => {
 			return {
 				name: `${org._id} (${org.username})`,
 				value: org
 			};
-		});
+		})
 
 		if(includeNewChoice) {
 			choices.push({

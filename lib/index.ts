@@ -1,64 +1,71 @@
-#!/usr/bin/env node
-
+import { NestFactory } from '@nestjs/core';
 import * as flow from './flow';
-import { projectRoot } from './paths';
-import { join } from 'path';
+import { NestApplicationContextOptions } from '@nestjs/common/interfaces/nest-application-context-options.interface';
+import { ApplicationModule } from './modules/ApplicationModule';
+import { UserInterfaceService } from './modules/user-interface/UserInterfaceService';
+import commander from 'commander';
 
-const commander = require('commander');
-const packageJson = require(join(projectRoot, 'package.json'));
+export async function bootstrap(version: string, isDevelopment: boolean) {
 
-const debugOption = {
-	name: '--debug',
-	description: 'Used only for development, has no effect otherwise.'
-};
+	const applicationContextOptions: NestApplicationContextOptions = { };
 
-commander
-	.version(packageJson.version);
+	if(!isDevelopment) {
+		//Will prevent default nest js logging (not user friendly) during the app creation process.
+		applicationContextOptions.logger = false;
+	}
 
-commander
-	.command('auth')
-	.alias('a')
-	.description('Adds authentication for a Salesforce org.')
-	.option(debugOption.name, debugOption.description)
-	.action(flow.auth);
+	const application = await NestFactory.createApplicationContext(ApplicationModule, applicationContextOptions);
+	const uiService = application.get<UserInterfaceService>(UserInterfaceService);
 
-commander
-	.command('new')
-	.alias('n')
-	.description('Creates a new Visualforce page and deploys it to Salesforce.')
-	.option(debugOption.name, debugOption.description)
-	.action(flow.newPage);
+	let actionToRun;
 
-commander
-	.command('serve')
-	.alias('s')
-	.description('Serves up an app running locally directly in a Visualforce page.')
-	.option(debugOption.name, debugOption.description)
-	.action(flow.serve);
+	commander
+		.version(version);
+	
+	commander
+		.command('connect')
+		.alias('c')
+		.description('Adds authentication for a Salesforce org.')
+		.action(() => actionToRun = uiService.auth());
+	
+	commander
+		.command('new')
+		.alias('n')
+		.description('Creates a new Visualforce page and deploys it to Salesforce.')
+		.action(flow.newPage);
+	
+	commander
+		.command('serve')
+		.alias('s')
+		.description('Serves up an app running locally directly in a Visualforce page.')
+		.action(flow.serve);
+	
+	commander
+		.command('deploy')
+		.alias('d')
+		.description('Deploys an app to Salesforce as a Static Resource.')
+		.action(flow.deployApp);
+	
+	commander
+		.command('list')
+		.alias('ls')
+		.description('Lists all authenticated Salesforce orgs and created Visualforce pages.')
+		.action(flow.list);
+	
+	commander
+		.command('clear')
+		.alias('cl')
+		.description('Clears all authenticated orgs and Visualforce pages locally (does not affect Salesforce).')
+		.action(flow.deleteDatabase);
+	
+	commander.parse(process.argv);
+	
+	if(!commander.args.length) {
+		commander.help();
+	}
 
-commander
-	.command('deploy')
-	.alias('d')
-	.description('Deploys an app to Salesforce as a Static Resource.')
-	.option(debugOption.name, debugOption.description)
-	.action(flow.deployApp);
-
-commander
-	.command('list')
-	.alias('ls')
-	.description('Lists all authenticated Salesforce orgs and created Visualforce pages.')
-	.option(debugOption.name, debugOption.description)
-	.action(flow.list);
-
-commander
-	.command('clear')
-	.alias('c')
-	.description('Clears all authenticated orgs and Visualforce pages locally (does not affect Salesforce).')
-	.option(debugOption.name, debugOption.description)
-	.action(flow.deleteDatabase);
-
-commander.parse(process.argv);
-
-if(!commander.args.length) {
-	commander.help();
+	if(actionToRun) {
+		await actionToRun;
+	}
 }
+

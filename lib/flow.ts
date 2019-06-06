@@ -12,11 +12,10 @@ import deploy from './deploy';
 import { determineBuildSystem, getPluginModule } from './plugins';
 import processAuth from './logic/process-auth';
 import { Debug } from './utilities/debug';
+import { deleteAllData, OrgRepository, PageRepository } from './JsonDB';
 
 const jsforce = require('jsforce');
 const chalk = require('chalk');
-const cryptoJs = require('crypto-js');
-const _ = require('lodash');
 const debug = new Debug('svf', 'flow');
 
 export async function auth() : Promise<Org> {
@@ -91,7 +90,7 @@ export async function deleteDatabase() : Promise<void> {
 			return;
 		}
 
-		let destroyResult = await db.destroy();
+		deleteAllData();
 
 		m.success('Delete successful');
 
@@ -121,12 +120,15 @@ export async function list() {
 
 	try {
 	
+		const orgRepository = new OrgRepository();
+		const pageRepository = new PageRepository();
+
 		let [orgs, pages] = await Promise.all([
-			<Org[]>db.getAllOrgs(), 
-			<Page[]>db.getAllPages()
+			orgRepository.findAll(),
+			pageRepository.findAll()
 		]);
 
-		_.sortBy(orgs, ['name']).forEach(org => {
+		orgs.sort(sortByName).forEach(org => {
 			
 			let username = chalk.yellow(`(${org.username})`);
 			console.log(`Org: ${org.name} ${username}`);
@@ -144,11 +146,11 @@ export async function list() {
 			let padding = currentOrgPages.reduce((prev, page) => {
 				return page.name.length > prev ? page.name.length : prev;
 			}, 0);
-			
-			_.sortBy(currentOrgPages, ['name']).forEach(page => {
+
+			currentOrgPages.sort(sortByName).forEach(page => {
 
 				if(page._id) {
-					let pageName = chalk.cyan(_.padEnd(page.name, padding));
+					let pageName = chalk.cyan(page.name.padEnd(padding));
 					let outputDir = chalk.cyan(` - ${page.outputDir}`);
 					console.log(`  > ${pageName} ${outputDir}`);
 				} else {
@@ -201,10 +203,8 @@ async function _resolvePageObject(pluginName: string, org: Org) : Promise<Page> 
 	page.outputDir = pageConfig.outputDirectory;
 	page.pluginName = pluginName;
 
-	let postResult = await db.post(page);
-	debug.info(`new page save result`, postResult);
-
-	let result = await db.getWithDefault(postResult.id);
+	const pageRepository = new PageRepository();
+	const result = await pageRepository.post(page);
 
 	return result;
 }
@@ -223,7 +223,8 @@ async function _deployNewPage(org: Org, page: Page) {
 
 		page.salesforceId = pageId;
 
-		let pageUpdateResult = await db.update(page);
+		const pageRepository = new PageRepository();
+		const pageUpdateResult = await pageRepository.update(page);
 		m.success(`Successfully created page ${chalk.cyan(page.name)} ${chalk.cyan(`(Id: ${pageUpdateResult.salesforceId})`)}`);
 
 		return pageUpdateResult;
@@ -260,7 +261,8 @@ async function _startTunnel(org, page) {
 		m.success(`Tunnel started at: ${chalk.cyan(url)}`);
 	
 		//Re-query the org in case the processCustomSettings() method updated the org credentials.
-		org = await db.getWithDefault(org._id);
+		const orgRepository = new OrgRepository();
+		org = await orgRepository.getWithDefault(org._id);
 	
 		await _togglePageSettings(org, page, url, true);
 
@@ -322,7 +324,8 @@ async function _validateIfOrgIsAuthed(orgName: string) : Promise<Org> {
 	
 	try {
 	
-		let org = await db.getWithDefault(orgName);
+		const orgRepository = new OrgRepository();
+		let org = await orgRepository.getWithDefault(orgName);
 		
 		if(org) return org;
 
@@ -333,4 +336,20 @@ async function _validateIfOrgIsAuthed(orgName: string) : Promise<Org> {
 		await errorReporter.error(error, meta);
 		throw error;
 	}
+}
+
+function sortByName(a: any, b: any) {
+
+	const A = a.name.toUpperCase();
+	const B = b.name.toUpperCase();
+
+	let comparisonValue = 0;
+
+	if(A > B) {
+		comparisonValue = 1;
+	} else if(A < B) {
+		comparisonValue = -1;
+	}
+
+	return comparisonValue;
 }

@@ -11,7 +11,7 @@ class DefaultPlugin implements Plugin {
 		return askForPageConfig(pageName);
 	}
 
-	onFileChange(org: Org, page, file) { }
+	onFileChange(_org: Org, _page, _file) { }
 
 	getHtmlMarkup(page) : Promise<string> {
 		return defaultHtml(page);

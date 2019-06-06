@@ -1,10 +1,10 @@
 import { Salesforce } from './salesforce';
-import db from './db';
 import { Org } from './models/org';
 import { Page } from './models/page';
 import { Debug } from './utilities/debug';
 import * as fs from 'fs-extra';
 import { join } from 'path';
+import { PageRepository } from './JsonDB';
 
 const archiver = require('archiver');
 const chalk = require('chalk');
@@ -52,11 +52,14 @@ export default async function(org: Org, page: Page) {
 	let sf = new Salesforce(org);
 	let staticResourceId = await sf.saveStaticResource(page, zipFilePath);
 
-	let promises = [fs.emptyDir(TEMP_DIR_PATH)];
+	let promises: Promise<any>[] = [fs.emptyDir(TEMP_DIR_PATH)];
 
 	if(page.staticResourceId !== staticResourceId) {
+
 		page.staticResourceId = staticResourceId;
-		promises.push(db.update(page));
+
+		const pageRepository = new PageRepository();
+		promises.push(pageRepository.update(page));
 	}
 
 	let [deleteTempDir, updateResult] = await Promise.all(promises);

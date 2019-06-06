@@ -15,12 +15,12 @@ export default async function(org?: Org) : Promise<OrgCredentials> {
 	//Initialize this parameter to an object to help avoid null reference errors.
 	org = org || new Org();
 
-	let orgType = await askOrgType(org.loginUrl);
+	let loginUrl = await askOrgType(org.loginUrl);
 	let username = await askUsername(org.username);
 	let password = await askPassword();
 	let securityToken = await askSecurityToken(undefined, org.securityToken)
 
-	let credentials = { orgType, username, password, securityToken };
+	let credentials = { loginUrl, username, password, securityToken };
 	debug.verbose(`getOrgCredentials() return value`, credentials);
 
 	return credentials;

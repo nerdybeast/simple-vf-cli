@@ -8,11 +8,10 @@ import * as templates from './templates';
 import { getPluginModule } from './plugins'
 import { Debug } from './utilities/debug';
 import { version } from 'punycode';
+import sortBy from 'lodash.sortby';
 
 const fs = require('fs');
 const jsforce = require('jsforce');
-const cryptoJS = require('crypto-js');
-const _ = require('lodash');
 const debug = new Debug('svf', 'salesforce');
 
 export class Salesforce {
@@ -129,7 +128,18 @@ export class Salesforce {
 
 		} catch (error) {
 
-			createdResources = _.sortBy(createdResources, ['order']);
+			createdResources = createdResources.sort((a: any, b: any) => {
+
+				let comparisonValue = 0;
+
+				if(a.order > b.order) {
+					comparisonValue = 1;
+				} else if(a.order < b.order) {
+					comparisonValue = -1;
+				}
+
+				return comparisonValue;
+			});
 
 			for(let resource of createdResources) {
 				let connection = resource.isTooling ? this.conn.tooling : this.conn;
@@ -180,7 +190,8 @@ export class Salesforce {
 
 			let [encryptionKey, securityToken] = await Promise.all([ db.getEncryptionKey(), securityTokenPromise ]);
 
-			let password = cryptoJS.AES.decrypt(this.org.password, encryptionKey).toString(cryptoJS.enc.Utf8) + securityToken;
+			//let password = cryptoJS.AES.decrypt(this.org.password, encryptionKey).toString(cryptoJS.enc.Utf8) + securityToken;
+			let password = '';
 
 			let [org, userInfo] = await Promise.all([
 				<Org>db.getWithDefault(this.org._id),

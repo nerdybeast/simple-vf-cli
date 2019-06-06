@@ -1,0 +1,17 @@
+#!/usr/bin/env node
+
+const fs = require('fs');
+const path = require('path');
+const packageJson = require('../package.json');
+
+const tsconfigPath = path.join(__dirname, '../tsconfig.json');
+const isDevelopment = fs.existsSync(tsconfigPath);
+const moduleToUse = isDevelopment ? 'lib' : 'dist';
+
+if (isDevelopment) {
+	require('ts-node').register({ project: tsconfigPath });
+}
+
+require(`../${moduleToUse}`)
+	.bootstrap(packageJson.version, isDevelopment)
+	.catch(error => console.error('An error has occurred:', error));

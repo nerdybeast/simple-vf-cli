@@ -4,10 +4,10 @@ import db from '../db';
 import { askOrgCredentials } from '../cli';
 import reporter from '../error-reporter';
 import { Debug } from '../utilities/debug';
+import { OrgRepository } from '../JsonDB';
 
 const jsforce = require('jsforce');
 const chalk = require('chalk');
-const cryptoJs = require('crypto-js');
 const debug = new Debug('svf', 'process-auth');
 
 export default async function processAuth(orgName: string, org?: Org) : Promise<Org> {
@@ -17,13 +17,14 @@ export default async function processAuth(orgName: string, org?: Org) : Promise<
 	
 	try {
 		
-		let savedOrg = org || (await db.getWithDefault(orgName));
+		const orgRepository = new OrgRepository();
+		let savedOrg = org || (await orgRepository.getWithDefault(orgName));
 		let credentials = await askOrgCredentials(savedOrg);
 		
 		//Eagerly set these properties so that we can provide the user with retry effect when their login fails.
 		newOrg._id = orgName;
 		newOrg.name = orgName;
-		newOrg.loginUrl = credentials.orgType;
+		newOrg.loginUrl = credentials.loginUrl;
 		newOrg.username = credentials.username;
 		newOrg.securityToken = credentials.securityToken;
 	
@@ -32,12 +33,11 @@ export default async function processAuth(orgName: string, org?: Org) : Promise<
 		message.start(`Saving information for ${chalk.cyan(orgName)}...`);
 
 		newOrg.instanceUrl = instanceUrl;
-		newOrg.password = cryptoJs.AES.encrypt(credentials.password, encryptionKey).toString();
 		newOrg.userId = loginResult.id;
 		newOrg.orgId = loginResult.organizationId;
 		newOrg.accessToken = accessToken;
 	
-		newOrg = await db.update(newOrg);
+		newOrg = await orgRepository.update(newOrg);
 
 		message.success(`Information successfully saved.`);
 
