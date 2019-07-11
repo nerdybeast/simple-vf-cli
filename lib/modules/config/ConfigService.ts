@@ -14,7 +14,7 @@ export class ConfigService {
 	/**
 	 * Points to the root directory where this app stores settings.
 	 */
-	public appSettingsLocation() : string {
+	public get AppSettingsDirectoryPath() : string {
 
 		const homeDir = this.os.homedir();
 		const platform = this.os.platform();
@@ -35,5 +35,17 @@ export class ConfigService {
 		}
 
 		return join(homeDir, dbPath);
+	}
+
+	public get PluginNamePrefix() : string {
+		return '@svf/plugin-';
+	}
+
+	public get PluginDirectoryPath() : string {
+		return `${this.AppSettingsDirectoryPath}/plugins`;
+	}
+
+	public get PluginPackageJsonFilePath() : string {
+		return `${this.PluginDirectoryPath}/package.json`;
 	}
 }

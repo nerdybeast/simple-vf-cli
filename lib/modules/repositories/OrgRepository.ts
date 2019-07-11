@@ -2,6 +2,7 @@ import { RepositoryBase } from './RepositoryBase';
 import { Org } from '../../models/org';
 import { Inject, Injectable } from '@nestjs/common';
 import FsExtra from 'fs-extra';
+import { OrgNotFoundException } from './OrgNotFoundException';
 
 @Injectable()
 export class OrgRepository extends RepositoryBase<Org> {
@@ -10,8 +11,15 @@ export class OrgRepository extends RepositoryBase<Org> {
 		super('org', fs, dbPath);
 	}
 
-	public async findByName(orgName: string) : Promise<Org|void> {
+	public async findByName(orgName: string) : Promise<Org> {
+
 		const orgs = await this.findAll();
-		return orgs.find(org => org.name === orgName);
+		const org = orgs.find(org => org.name === orgName);
+
+		if(!org) {
+			throw new OrgNotFoundException(orgName);
+		}
+
+		return org;
 	}
 }

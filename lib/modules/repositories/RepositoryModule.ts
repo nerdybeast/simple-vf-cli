@@ -21,7 +21,7 @@ import { ConfigService } from '../config/ConfigService';
 			],
 			useFactory: async (fs: typeof FsExtra, configService: ConfigService) => {
 
-				const dbPath = join(configService.appSettingsLocation(), 'simple-vf-cli.db.json');
+				const dbPath = join(configService.AppSettingsDirectoryPath, 'simple-vf-cli.db.json');
 				const fileExists = await fs.pathExists(dbPath);
 
 				if(!fileExists) {

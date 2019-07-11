@@ -29,10 +29,10 @@ export async function bootstrap(version: string, isDevelopment: boolean) {
 		.action(() => actionToRun = uiService.auth());
 	
 	commander
-		.command('new')
-		.alias('n')
+		.command('page')
+		.alias('p')
 		.description('Creates a new Visualforce page and deploys it to Salesforce.')
-		.action(flow.newPage);
+		.action(() => actionToRun = uiService.page());
 	
 	commander
 		.command('serve')

@@ -1,5 +1,5 @@
 import { Injectable, Inject } from '@nestjs/common';
-import { Inquirer, Question } from 'inquirer';
+import { Inquirer, Question, ChoiceType } from 'inquirer';
 import { Org } from '../../models/org';
 
 @Injectable()
@@ -31,18 +31,15 @@ export class QuestionsService {
 	 */
 	public async getLoginUrl(defaultLoginUrl?: string) : Promise<string> {
 
-		const loginUrl = await this.ask<string>({
-			type: 'list',
-			message: 'Please select the type of org:',
-			default: defaultLoginUrl,
-			choices: [{
-				name: 'sandbox',
-				value: 'https://test.salesforce.com'
-			}, {
-				name: 'production',
-				value: 'https://login.salesforce.com'
-			}]
-		});
+		const choices = [{
+			name: 'sandbox',
+			value: 'https://test.salesforce.com'
+		}, {
+			name: 'production',
+			value: 'https://login.salesforce.com'
+		}];
+
+		const loginUrl = await this.basicList<string>('Please select the type of org:', choices, defaultLoginUrl);
 
 		return loginUrl;
 	}
@@ -113,14 +110,20 @@ export class QuestionsService {
 			});
 		}
 
-		const selectedOrg = await this.ask<Org|null>({
-			type: 'list',
-			message: questionText,
-			//@ts-ignore
-			choices
-		});
+		const selectedOrg = await this.basicList<Org|null>(questionText, choices);
 
 		return selectedOrg;
+	}
+
+	//TODO: Make "choices" not be "any", can't do inquireer.ChoiceType though because using this interface
+	//only allows the value to be a string when in fact it can be any object.
+	public async basicList<T>(questionText: string, choices: any[], defaultValue?: T) : Promise<T> {
+		return await this.ask({
+			type: 'list',
+			message: questionText,
+			default: defaultValue,
+			choices
+		});
 	}
 
 	private async ask<T>(question: Question) : Promise<T> {

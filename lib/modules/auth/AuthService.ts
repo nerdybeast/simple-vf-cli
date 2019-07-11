@@ -3,6 +3,7 @@ import { OrgRepository } from '../repositories/OrgRepository';
 import { QuestionsService } from '../questions/QuestionsService';
 import { Org } from '../../models/org';
 import { OrgCredentials } from '../../models/org-credentials';
+import { OrgNotFoundException } from '../repositories/OrgNotFoundException';
 
 @Injectable()
 export class AuthService {
@@ -15,6 +16,11 @@ export class AuthService {
 		this.questionService = questionService;
 	}
 
+	/**
+	 * Will ask the user to pick an existing org name or enter a new one. The org name returned from this method
+	 * does not mean the org is saved in the database.
+	 * @param existingOrgName 
+	 */
 	public async getOrgName(existingOrgName?: string) : Promise<string> {
 
 		//NOTE: "existingOrgName" may not be the exact value the user wants (perhaps they mis-typed)
@@ -52,12 +58,17 @@ export class AuthService {
 
 		} else if(orgName !== undefined) {
 
-			org = await this.orgRepository.findByName(orgName);
+			try {
 
-			if(org !== undefined) {
+				org = await this.orgRepository.findByName(orgName);
 				defaultLoginUrl = org.loginUrl;
 				defaultUserName = org.username;
 				defaultSecurityToken = org.securityToken;
+
+			} catch(error) {
+				if(!(error instanceof OrgNotFoundException)) {
+					throw error;
+				}
 			}
 		}
 
@@ -72,5 +83,23 @@ export class AuthService {
 
 	public async saveOrg(org: Org) : Promise<void> {
 		await this.orgRepository.save(org);
+	}
+
+	public async orgIsSaved(orgName: string) : Promise<boolean> {
+
+		try {
+
+			await this.orgRepository.findByName(orgName);
+			return true;
+
+		} catch(error) {
+
+			if(error instanceof OrgNotFoundException) {
+				return false;
+			}
+
+			throw error;
+		}
+
 	}
 }
