@@ -71,8 +71,8 @@
     "debug": "3.1.0",
     "gulp": "3.9.1",
     "gulp-typescript": "3.2.3",
-    "jest": "21.2.1",
-    "ts-jest": "21.1.4",
+    "jest": "29.3.1",
+    "ts-jest": "29.0.3",
     "typescript": "2.6.1"
   },
   "jest": {
